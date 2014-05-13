@@ -1,4 +1,4 @@
-nrdp = {
+var nrdp = {
     device: {
         get ESN() { return "ESN"; }
     }

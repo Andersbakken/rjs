@@ -1,19 +1,27 @@
+#!/usr/bin/env node
+
 var esprima = require('esprima');
 var esrefactor = require('esrefactor');
 var estraverse = require('estraverse');
 var safe = require('safetydance');
 var ws = require('ws');
 var rjs = require('rjs');
+var optimist = require('optimist');
+var usageString = 'Usage:\n$0 ...options\n  -v|--verbose\n  -p|--port [location]\n';
+optimist.usage(usageString);
+optimist.default('port', rjs.defaultPort);
+if (!optimist.argv.port)
+    optimist.argv.port = rjs.defaultPort;
 
-console.log("FISK");
+var verbose = optimist.argv.verbose || optimist.argv.v;
+
 // include("esrefactor/lib/esrefactor.js")
-var esrefactorContext = new esrefactor.Context();
-
-function indexFile(code, file, verbose)
+function indexFile(code, file)
 {
+    var esrefactorContext = new esrefactor.Context();
     var parsed;
     try {
-        parsed = esprima.parse(code, { range: true, tolerant: true });
+        parsed = esprima.parse(code, { loc: true, tolerant: true, tokens: true });
     } catch (err) {
         console.log("Got error", err, "for", code);
         return {errors:[err]};
@@ -309,44 +317,61 @@ function indexFile(code, file, verbose)
         });
         ret.ast = esrefactorContext._syntax;
     }
+    ret.context = esrefactorContext;
     if (errors)
         ret.errors = errors;
     return ret;
 }
 
-for (var i=2; i<process.argv.length; ++i) {
-    var source = safe.fs.readFileSync(process.argv[i], { encoding:'utf8' });
-    if (!source) {
-        console.error("Couldn't open", process.argv[i], "for reading");
-        continue;
-    }
-    var ret = indexFile(source, process.argv[i], false);
-    if (ret.ast)
-        console.log(ret.ast);
-}
+// for (var i=2; i<process.argv.length; ++i) {
+//     var source = safe.fs.readFileSync(process.argv[i], { encoding:'utf8' });
+//     if (!source) {
+//         console.error("Couldn't open", process.argv[i], "for reading");
+//         continue;
+//     }
+//     var ret = indexFile(source, process.argv[i], false);
+//     if (ret.ast)
+//         console.log(ret.ast);
+// }
 
 var db = {};
-var server = new ws.Server({port:5678});
+console.log(optimist.argv);
+var server = new ws.Server({port:optimist.argv.port});
 server.on('connection', function(conn) {
+    if (verbose)
+        console.log("Got a connection");
     conn.on('message', function(message) {
-        switch (message.type) {
-        case 'index':
-            if (!db[message.file]) {
-                var source = safe.fs.readFileSync(process.argv[i], { encoding:'utf8' });
+        var msg = safe.JSON.parse(message);
+        if (verbose)
+            console.log("got message", msg);
+        if (!msg) {
+            conn.send(JSON.stringify({error: rjs.ERROR_PROTOCOL_ERROR}));
+            return;
+        }
+        switch (msg.type) {
+        case rjs.MESSAGE_COMPILE:
+            if (!msg.file) {
+                conn.send(JSON.stringify({error: rjs.ERROR_MISSING_FILE}));
+                return;
+            }
+            if (!db[msg.file]) {
+                var source = safe.fs.readFileSync(msg.file, { encoding:'utf8' });
                 if (!source) {
-                    console.error("Couldn't open", process.argv[i], "for reading");
-                    conn.send(JSON.stringify({error:
-
-                    continue;
+                    console.error("Couldn't open", msg.file, "for reading");
+                    conn.send(JSON.stringify({error: rjs.ERROR_READFAILURE}));
+                    return;
                 }
-                
-                var ret = indexFile(
+
+                conn.send(JSON.stringify({error: rjs.ERROR_OK}));
+                console.log("source is", source);
+                var ret = indexFile(msg.file, source);
+                // var ret = indexFile(
             }
 
             break;
-        case 'followSymbol':
+        case rjs.MESSAGE_FOLLOW_SYMBOL:
             break;
-        case 'findReferences':
+        case rjs.MESSAGE_FIND_REFERENCES:
             break;
         }
     });
