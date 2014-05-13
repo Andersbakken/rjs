@@ -100,9 +100,16 @@ server.on('connection', function(conn) {
                 send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
                 break;
             }
+            if (verbose)
+                console.log("Found symbol", symbol);
             if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
                 send({ error: rjs.ERROR_OK, target: symbol.target });
             } else {
+                if (!symbol.definition && symbol.target) {
+                    var sym = indexer.findLocation(db[msg.location.file].symbols, symbol.target[0]);
+                    if (sym)
+                        symbol = sym;
+                }
                 send({ error: rjs.ERROR_OK, references: symbol.references });
             }
             break;
