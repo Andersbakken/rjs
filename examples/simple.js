@@ -20,8 +20,8 @@ function bar()
     var b = aaaaaaaaaaaa;
 }
 
-function balle()
-{
-    var fisk = true;
-    fisk = false;
-}
+// function balle()
+// {
+//     var fisk = true;
+//     fisk = false;
+// }
