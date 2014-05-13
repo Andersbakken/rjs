@@ -4,6 +4,7 @@ var esprima = require('esprima');
 var esrefactor = require('esrefactor');
 var estraverse = require('estraverse');
 var safe = require('safetydance');
+var fs = require('fs');
 var ws = require('ws');
 var rjs = require('rjs');
 var optimist = require('optimist');
@@ -21,7 +22,7 @@ function indexFile(code, file)
     var esrefactorContext = new esrefactor.Context();
     var parsed;
     try {
-        parsed = esprima.parse(code, { loc: true, tolerant: true, tokens: true });
+        parsed = esprima.parse(code, { loc: true, tolerant: true, tokens: true, range: true });
     } catch (err) {
         console.log("Got error", err, "for", code);
         return {errors:[err]};
@@ -303,8 +304,8 @@ function indexFile(code, file)
             }
 
             ret.objects.push(scopes[s].objects);
-            if (scopes.length < 5)
-                console.log(s, scopes[s].objects);
+            // if (scopes.length < 5)
+            //     console.log(s, scopes[s].objects);
         }
     }
 
@@ -317,7 +318,6 @@ function indexFile(code, file)
         });
         ret.ast = esrefactorContext._syntax;
     }
-    ret.context = esrefactorContext;
     if (errors)
         ret.errors = errors;
     return ret;
@@ -335,9 +335,10 @@ function indexFile(code, file)
 // }
 
 var db = {};
-console.log(optimist.argv);
+// console.log(optimist.argv);
 var server = new ws.Server({port:optimist.argv.port});
 server.on('connection', function(conn) {
+    function send(obj) { conn.send(JSON.stringify(obj)); }
     if (verbose)
         console.log("Got a connection");
     conn.on('message', function(message) {
@@ -345,29 +346,57 @@ server.on('connection', function(conn) {
         if (verbose)
             console.log("got message", msg);
         if (!msg) {
-            conn.send(JSON.stringify({error: rjs.ERROR_PROTOCOL_ERROR}));
+            send({error: rjs.ERROR_PROTOCOL_ERROR});
             return;
         }
         switch (msg.type) {
         case rjs.MESSAGE_COMPILE:
             if (!msg.file) {
-                conn.send(JSON.stringify({error: rjs.ERROR_MISSING_FILE}));
+                send({error: rjs.ERROR_MISSING_FILE});
                 return;
             }
-            if (!db[msg.file]) {
+            if (db[msg.file]) {
+                send({error: rjs.ERROR_FILE_ALREADY_INDEXED});
+                return;
+            }
+            var index = function() {
+                var start;
+                if (verbose)
+                    start = new Date();
+                delete db[msg.file];
                 var source = safe.fs.readFileSync(msg.file, { encoding:'utf8' });
                 if (!source) {
                     console.error("Couldn't open", msg.file, "for reading");
-                    conn.send(JSON.stringify({error: rjs.ERROR_READFAILURE}));
-                    return;
+                    if (conn)
+                        send({error: rjs.ERROR_READFAILURE});
+                    return false;
                 }
 
-                conn.send(JSON.stringify({error: rjs.ERROR_OK}));
-                console.log("source is", source);
-                var ret = indexFile(msg.file, source);
-                // var ret = indexFile(
+                if (conn)
+                    send({error: rjs.ERROR_OK});
+                var ret = indexFile(source, msg.file);
+                if (verbose) {
+                    console.log("Indexing", msg.file, "took", (new Date() - start), "ms");
+                }
+                if (!ret) {
+                    console.error("Couldn't parse file", msg.file);
+                    return false;
+                }
+                if (verbose)
+                    console.log(ret.objects);
+                db[msg.file] = ret;
+                return true;
+            };
+            if (index()) {
+                conn = undefined;
+                fs.watchFile(msg.file, function(curr, prev) {
+                    if (verbose)
+                        console.log(msg.file, "was modified");
+                    if (curr.mtime !== prev.mtime) {
+                        index();
+                    }
+                });
             }
-
             break;
         case rjs.MESSAGE_FOLLOW_SYMBOL:
             break;

@@ -43,13 +43,15 @@ var sock;
 var server = 'ws://localhost:' + optimist.argv.port + '/';
 // console.log("server", server);
 function sendNext() {
-    function createLocation(fileAndLine) {
-        var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
+    function createLocation(fileAndOffset) {
+        var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
+        // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
         if (!caps) {
-            console.error("Can't parse location", fileAndLine);
+            console.error("Can't parse location", fileAndOffset);
             process.exit(7);
         }
-        return { file: caps[1], line: caps[2], column: caps[3] };
+        // return { file: caps[1], line: caps[2], column: caps[3] };
+        return { file: caps[1], offset: caps[2] };
     }
     if (compiles.length) {
         var c = compiles.splice(0, 1)[0];
@@ -88,10 +90,10 @@ try {
             console.error("Invalid response", data);
             process.exit(5);
         }
+        if (typeof response.error !== undefined)
+            response.error = rjs.errorCodeToString(response.error);
         console.log("GOT RESPONSE", response);
         sendNext();
-        // flags.binary will be set if a binary data is received
-        // flags.masked will be set if the data was masked
     });
 } catch (err) {
     console.error("Can't seem to connect to server at", server, " Are you sure it's running?");
