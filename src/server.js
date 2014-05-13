@@ -12,7 +12,14 @@ optimist.default('port', rjs.defaultPort);
 if (!optimist.argv.port)
     optimist.argv.port = rjs.defaultPort;
 
-var verbose = optimist.argv.verbose || optimist.argv.v;
+var verbose = 0;
+['v', 'verbose'].forEach(function(arg) {
+    if (typeof optimist.argv[arg] === 'boolean') {
+        ++verbose;
+    } else if (optimist.argv[arg] instanceof Array) {
+        verbose += optimist.argv[arg].length;
+    }
+});
 
 var db = {};
 // console.log(optimist.argv);
@@ -63,7 +70,7 @@ server.on('connection', function(conn) {
                     return false;
                 }
                 if (verbose)
-                    console.log(ret.objects);
+                    console.log(JSON.stringify(ret, null, 4));
                 db[msg.file] = ret;
                 return true;
             };
@@ -79,8 +86,25 @@ server.on('connection', function(conn) {
             }
             break;
         case rjs.MESSAGE_FOLLOW_SYMBOL:
-            break;
         case rjs.MESSAGE_FIND_REFERENCES:
+            if (!msg.location || !msg.location.file || !msg.location.offset) {
+                send({error: rjs.ERROR_INVALID_LOCATION});
+                break;
+            }
+            if (!db[msg.location.file]) {
+                send({error: rjs.ERROR_FILE_NOT_INDEXED});
+                break;
+            }
+            var symbol = indexer.findLocation(db[msg.location.file].symbols, msg.location.offset);
+            if (!symbol) {
+                send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
+                break;
+            }
+            if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
+                send({ error: rjs.ERROR_OK, target: symbol.target });
+            } else {
+                send({ error: rjs.ERROR_OK, references: symbol.references });
+            }
             break;
         }
     });
