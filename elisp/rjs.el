@@ -253,6 +253,15 @@
       (if (rjs-call-client "-f" loc)
           (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
 
+(defun rjs-find-references-at-point ()
+  (interactive)
+  (let ((loc (rjs-current-location)))
+    (unless loc
+      (error "RJS: Buffer is not visiting a file"))
+    (with-current-buffer (rjs-get-buffer)
+      (if (rjs-call-client "-r" loc)
+          (rtags-handle-results-buffer)))))
+
 ;; (defun rjs-target (&optional filter)
 ;;   (let ((path (buffer-file-name))
 ;;         (location (rjs-current-location))
@@ -262,7 +271,7 @@
 ;;           (rjs-call-rc :path path "-N" "-f" location :context context :path-filter filter :noerror t)
 ;;           (setq rjs-last-request-not-indexed nil)
 ;;           (cond ((= (point-min) (point-max))
-;;                  (message "Rjs: No target") nil)
+;;                  (message "RJS: No target") nil)
 ;;                 ((or (string= (buffer-string) "Not indexed\n")
 ;;                      (string= (buffer-string) "Can't seem to connect to server\n"))
 ;;                  (setq rjs-last-request-not-indexed t) nil)
@@ -314,7 +323,7 @@
 ;;              (not (equal (region-beginning) (region-end))))
 ;;         (setq narrow-start (+ 1 (count-lines (point-min) (region-beginning)))
 ;;               narrow-end (+ 1 (count-lines (point-min) (region-end)))))
-;;     (let ((preprocess-buffer (rjs-get-buffer (format "*Rjs preprocessed %s*" (buffer-file-name buffer)))))
+;;     (let ((preprocess-buffer (rjs-get-buffer (format "*RJS preprocessed %s*" (buffer-file-name buffer)))))
 ;;       (rjs-location-stack-push)
 ;;       (with-current-buffer preprocess-buffer
 ;;         (rjs-call-rc :path (buffer-file-name buffer) "--preprocess" (buffer-file-name buffer))
@@ -370,7 +379,7 @@
 ;;                 (setq projects (add-to-list 'projects (match-string-no-properties 1 line))))))
 ;;         (forward-line)))
 ;;     (setq project (ido-completing-read
-;;                    (format "Rjs select project (current is %s): " current)
+;;                    (format "RJS select project (current is %s): " current)
 ;;                    projects))
 ;;     (if project
 ;;         (with-temp-buffer (rjs-call-rc :output nil :path t "-w" project)))))
@@ -424,7 +433,7 @@
 ;;                (if (string-match "^Enum Value: \\([0-9]+\\) *$" info)
 ;;                    (let ((enumval (match-string-no-properties 1 info)))
 ;;                      (message "%s - %s - 0x%X" (rjs-current-symbol-name info) enumval (string-to-number enumval)))))))
-;;           (t (message "Rjs: No enum here") nil))))
+;;           (t (message "RJS: No enum here") nil))))
 
 ;; (defun rjs-buffer-is-multibyte ()
 ;;   (string-match "\\butf\\b" (symbol-name buffer-file-coding-system)))
@@ -472,7 +481,7 @@
 
 (defun rjs-log (log)
   (if rjs-log-enabled
-      (with-current-buffer (get-buffer-create "*Rjs Log*")
+      (with-current-buffer (get-buffer-create "*RJS Log*")
         (goto-char (point-max))
         (setq buffer-read-only nil)
         (insert "**********************************\n" log "\n")
@@ -603,11 +612,11 @@
   (let ((instack (nth rjs-location-stack-index rjs-location-stack))
         (cur (rjs-current-location)))
     (if (not (string= instack cur))
-        (rjs-goto-location instack t)
+        (rjs-goto-location :location instack :nobookmark t)
       (let ((target (+ rjs-location-stack-index by)))
         (when (and (>= target 0) (< target (length rjs-location-stack)))
           (setq rjs-location-stack-index target)
-          (rjs-goto-location (nth rjs-location-stack-index rjs-location-stack) t))))))
+          (rjs-goto-location :location (nth rjs-location-stack-index rjs-location-stack) :nobookmark t))))))
 
 ;; ;; **************************** API *********************************
 
@@ -632,7 +641,7 @@
 ;;   :type 'number)
 
 ;; (defcustom rjs-tracking nil
-;;   "When on automatically jump to symbol under cursor in *Rjs* buffer"
+;;   "When on automatically jump to symbol under cursor in *RJS* buffer"
 ;;   :group 'rjs
 ;;   :type 'boolean)
 
@@ -682,10 +691,10 @@
 ;;   :group 'rjs
 ;;   :type 'hook)
 
-;; (defcustom rjs-jump-to-first-match t
-;;   "If t, jump to first match"
-;;   :group 'rjs
-;;   :type 'boolean)
+(defcustom rjs-jump-to-first-match t
+  "If t, jump to first match"
+  :group 'rjs
+  :type 'boolean)
 
 ;; (defcustom rjs-timeout nil
 ;;   "Max amount of ms to wait before timing out requests"
@@ -789,7 +798,7 @@
 ;;           (rjs-call-rc :path path "-N" "-f" location :context context :path-filter filter :noerror t)
 ;;           (setq rjs-last-request-not-indexed nil)
 ;;           (cond ((= (point-min) (point-max))
-;;                  (message "Rjs: No target") nil)
+;;                  (message "RJS: No target") nil)
 ;;                 ((or (string= (buffer-string) "Not indexed\n")
 ;;                      (string= (buffer-string) "Can't seem to connect to server\n"))
 ;;                  (setq rjs-last-request-not-indexed t) nil)
@@ -1101,7 +1110,7 @@
 ;;            rjs-last-total
 ;;            (> rjs-last-total 0))
 ;;       ;; (not (= rjs-last-index rjs-last-total)))
-;;       (format "Rjs: %d/%d %d%%%% " rjs-last-index rjs-last-total (/ (* rjs-last-index 100) rjs-last-total))
+;;       (format "RJS: %d/%d %d%%%% " rjs-last-index rjs-last-total (/ (* rjs-last-index 100) rjs-last-total))
 ;;     ""))
 
 ;; (add-to-list 'global-mode-string '(:eval (rjs-modeline-progress)))
@@ -1132,7 +1141,7 @@
 ;;                      (t (message "Unexpected element %s" (caar body))))
 ;;                (setq body (cdr body)))
 ;;              (force-mode-line-update))
-;;             ;;             (message "Rjs: %s/%s (%s%%)" index total)))
+;;             ;;             (message "RJS: %s/%s (%s%%)" index total)))
 ;;             (t (message "Unexpected root element %s" (car doc)))))))
 
 ;; (defun rjs-check-overlay (overlay)
@@ -1151,7 +1160,7 @@
 ;;       (if rjs-display-current-error-as-tooltip
 ;;           (popup-tip msg :point point)) ;; :face 'rjs-warnline)) ;;(overlay-get overlay 'face)))
 ;;       (if rjs-display-current-error-as-message
-;;           (message (concat "Rjs: " msg))))))
+;;           (message (concat "RJS: " msg))))))
 
 ;; (defvar rjs-update-current-error-timer nil)
 
@@ -1167,7 +1176,7 @@
 ;;   (setq rjs-update-current-error-timer
 ;;         (and (or rjs-display-current-error-as-message
 ;;                  rjs-display-current-error-as-tooltip)
-;;              (get-buffer "*Rjs Diagnostics*")
+;;              (get-buffer "*RJS Diagnostics*")
 ;;              (run-with-idle-timer
 ;;               rjs-error-timer-interval
 ;;               nil
@@ -1274,15 +1283,15 @@
 ;;   (interactive)
 ;;   (if (and rjs-diagnostics-process (not (eq (process-status rjs-diagnostics-process) 'exit)))
 ;;       (kill-process rjs-diagnostics-process))
-;;   (if (get-buffer "*Rjs Diagnostics*")
-;;       (kill-buffer "*Rjs Diagnostics*")))
+;;   (if (get-buffer "*RJS Diagnostics*")
+;;       (kill-buffer "*RJS Diagnostics*")))
 
 ;; ;;;###autoload
 ;; (defun rjs-clear-diagnostics ()
 ;;   (interactive)
-;;   (when (get-buffer "*Rjs Diagnostics*")
+;;   (when (get-buffer "*RJS Diagnostics*")
 ;;     (let (deactivate-mark)
-;;       (with-current-buffer "*Rjs Diagnostics*"
+;;       (with-current-buffer "*RJS Diagnostics*"
 ;;         (setq buffer-read-only nil)
 ;;         (goto-char (point-min))
 ;;         (delete-char (- (point-max) (point-min)))
@@ -1300,8 +1309,8 @@
 ;;                 "</completions>")))
 
 ;; (defun rjs-diagnostics-process-filter (process output)
-;;   ;; Collect the xml diagnostics into "*Rjs Raw*" until a closing tag is found
-;;   (with-current-buffer (get-buffer-create "*Rjs Raw*")
+;;   ;; Collect the xml diagnostics into "*RJS Raw*" until a closing tag is found
+;;   (with-current-buffer (get-buffer-create "*RJS Raw*")
 ;;     (goto-char (point-max))
 ;;     (insert output)
 ;;     (goto-char (point-min))
@@ -1331,7 +1340,7 @@
 ;;   (setq buffer-read-only t))
 
 ;; (defun rjs-init-diagnostics-buffer-and-process (&optional nodirty)
-;;   (let ((buf (get-buffer-create "*Rjs Diagnostics*")))
+;;   (let ((buf (get-buffer-create "*RJS Diagnostics*")))
 ;;     (unless nodirty (rjs-reparse-file))
 ;;     (with-current-buffer buf
 ;;       (rjs-diagnostics-mode))
@@ -1340,7 +1349,7 @@
 ;;               ((eq (process-status rjs-diagnostics-process) 'signal) t)
 ;;               (t nil))
 ;;         (let ((process-connection-type nil)) ;; use a pipe
-;;           (setq rjs-diagnostics-process (start-process "Rjs Diagnostics" buf (rjs-executable-find "rc") "-m"))
+;;           (setq rjs-diagnostics-process (start-process "RJS Diagnostics" buf (rjs-executable-find "rc") "-m"))
 ;;           (set-process-filter rjs-diagnostics-process (function rjs-diagnostics-process-filter))
 ;;           (rjs-clear-diagnostics)))))
 
@@ -1351,7 +1360,7 @@
 ;;       (rjs-stop-diagnostics))
 ;;   (rjs-init-diagnostics-buffer-and-process)
 ;;   (when (called-interactively-p 'any)
-;;     (switch-to-buffer-other-window "*Rjs Diagnostics*")
+;;     (switch-to-buffer-other-window "*RJS Diagnostics*")
 ;;     (other-window 1)))
 
 ;; (defvar rjs-indexed nil)
@@ -1380,25 +1389,24 @@
 ;; (defun rjs-has-filemanager (&optional buffer)
 ;;   (rjs-buffer-status buffer))
 
-;; (defun rjs-handle-results-buffer (&optional noautojump)
-;;   (setq rjs-last-request-not-indexed nil)
-;;   (rjs-reset-bookmarks)
-;;   (cond ((= (point-min) (point-max))
-;;          (message "Rjs: No results") nil)
-;;         ((= (count-lines (point-min) (point-max)) 1)
-;;          (let ((string (buffer-string)))
-;;            (bury-buffer)
-;;            (rjs-goto-location string)))
-;;         (t
-;;          (switch-to-buffer-other-window rjs-buffer-name)
-;;          (shrink-window-if-larger-than-buffer)
-;;          (goto-char (point-max))
-;;          (if (= (point-at-bol) (point-max))
-;;              (delete-char -1))
-;;          (rjs-init-bookmarks)
-;;          (rjs-mode)
-;;          (when (and rjs-jump-to-first-match (not noautojump))
-;;            (rjs-select-other-window)))))
+(defun rjs-handle-results-buffer (&key noautojump)
+  (rjs-reset-bookmarks)
+  (cond ((= (point-min) (point-max))
+         (message "RJS: No results") nil)
+        ((= (count-lines (point-min) (point-max)) 1)
+         (let ((string (buffer-string)))
+           (bury-buffer)
+           (rjs-goto-location :location string)))
+        (t
+         (switch-to-buffer-other-window rjs-buffer-name)
+         (shrink-window-if-larger-than-buffer)
+         (goto-char (point-max))
+         (if (= (point-at-bol) (point-max))
+             (delete-char -1))
+         (rjs-init-bookmarks)
+         (rjs-mode)
+         (when (and rjs-jump-to-first-match (not noautojump))
+           (rjs-select-other-window)))))
 
 ;; (defun rjs-filename-complete (string predicate code)
 ;;   (let ((complete-list (make-vector 63 0)))
@@ -1446,39 +1454,37 @@
 ;;                 (setq windows nil))
 ;;               (setq windows (cdr windows))))))))
 
-;; (defun rjs-select (&optional other-window remove show)
-;;   (interactive "P")
-;;   (let* ((line (line-number-at-pos))
-;;          (bookmark (format "R_%d" line))
-;;          (window (selected-window)))
-;;     (cond ((eq major-mode 'rjs-taglist-mode)
-;;            (rjs-goto-location (cdr (assoc line rjs-taglist-locations)) nil other-window))
-;;           ((and (>= rjs-buffer-bookmarks line)
-;;                 (member bookmark (bookmark-all-names)))
-;;            (when other-window
-;;              (if (= (length (window-list)) 1)
-;;                  (split-window))
-;;              (other-window 1))
-;;            (bookmark-jump bookmark)
-;;            (rjs-location-stack-push))
-;;           (t (rjs-goto-location (buffer-substring-no-properties (point-at-bol) (point-at-eol)) nil other-window)))
-;;     (if remove
-;;         (delete-window window)
-;;       (if show
-;;           (select-window window)))))
+(defun rjs-select (&key other-window remove show)
+  (interactive "P")
+  (let* ((line (line-number-at-pos))
+         (bookmark (format "R_%d" line))
+         (window (selected-window)))
+    (cond ((and (>= rjs-buffer-bookmarks line)
+                (member bookmark (bookmark-all-names)))
+           (when other-window
+             (if (= (length (window-list)) 1)
+                 (split-window))
+             (other-window 1))
+           (bookmark-jump bookmark)
+           (rjs-location-stack-push))
+          (t (rjs-goto-location (buffer-substring-no-properties (point-at-bol) (point-at-eol)) nil other-window)))
+    (if remove
+        (delete-window window)
+      (if show
+          (select-window window)))))
 
-;; (defun rjs-select-other-window (&optional not-other-window)
-;;   (interactive "P")
-;;   (rjs-select (not not-other-window)))
+(defun rjs-select-other-window (&optional not-other-window)
+  (interactive "P")
+  (rjs-select :other-window (not not-other-window)))
 
 ;; (defun rjs-show-in-other-window ()
 ;;   (interactive)
 ;;   ;; (message "About to show")
 ;;   (rjs-select t nil t))
 
-;; (defun rjs-select-and-remove-rjs-buffer ()
-;;   (interactive)
-;;   (rjs-select t t))
+(defun rjs-select-and-remove-rjs-buffer ()
+  (interactive)
+  (rjs-select :other-window t :remove t))
 
 ;; (defun rjs-imenu ()
 ;;   (interactive)
@@ -1492,7 +1498,7 @@
 ;;         (setq match (ido-completing-read "Symbol: " alternatives)))
 ;;     (if match
 ;;         (rjs-goto-location (with-temp-buffer (rjs-call-rc :path fn "-F" match :path-filter fn) (buffer-string)))
-;;       (message "Rjs: No symbols"))))
+;;       (message "RJS: No symbols"))))
 
 ;; (defun rjs-show-rjs-buffer ()
 ;;   (interactive)

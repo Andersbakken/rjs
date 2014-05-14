@@ -12,6 +12,6 @@ var castclient = {
         function restartInitTimer()
         {
         }
-        // restartInitTimer();
+        restartInitTimer();
     }
 };
