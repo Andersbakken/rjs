@@ -59,8 +59,6 @@ server.on('connection', function(conn) {
                     return false;
                 }
 
-                if (conn)
-                    send({error: rjs.ERROR_OK});
                 var ret = indexer.indexFile(source, msg.file, verbose);
                 if (verbose) {
                     console.log("Indexing", msg.file, "took", (new Date() - start), "ms");
@@ -72,6 +70,8 @@ server.on('connection', function(conn) {
                 if (verbose)
                     console.log(JSON.stringify(ret, null, 4));
                 db[msg.file] = ret;
+                if (conn)
+                    send({error: rjs.ERROR_OK});
                 return true;
             };
             if (index()) {
@@ -111,6 +111,17 @@ server.on('connection', function(conn) {
                         symbol = sym;
                 }
                 send({ error: rjs.ERROR_OK, references: symbol.references });
+            }
+            break;
+        case rjs.MESSAGE_DUMP:
+            if (!db[msg.file]) {
+                send({error: rjs.ERROR_FILE_NOT_INDEXED});
+                break;
+            }
+            try {
+                send({ error: rjs.ERROR_OK, dump: JSON.stringify(db[msg.file]) });
+            } catch (err) {
+                console.log("CAUGHT", err);
             }
             break;
         }

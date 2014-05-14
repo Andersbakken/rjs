@@ -10,6 +10,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -c|--compile [file]\n' +
                    '  -f|--follow-symbol [location]\n' +
                    '  -r|--find-references [location]\n' +
+                   '  -d|--dump [file]\n' +
                    '  -N|--no-context\n' +
                    '  -v|--verbose\n' +
                    '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
@@ -51,6 +52,7 @@ function values() {
 var compiles = values('c', 'compile');
 var followSymbols = values('f', 'follow-symbol');
 var references = values('r', 'find-references');
+var dumps = values('d', 'dump');
 if (!valid) {
     console.error(usageString.replace("$0", __filename));
     process.exit(1);
@@ -98,6 +100,12 @@ function sendNext() {
     if (references.length) {
         location = createLocation(references.splice(0, 1)[0]);
         sock.send(JSON.stringify({ type: rjs.MESSAGE_FIND_REFERENCES, location: location }));
+        return;
+    }
+
+    if (dumps.length) {
+        var file = path.resolve(dumps.splice(0, 1)[0]);
+        sock.send(JSON.stringify({ type: rjs.MESSAGE_DUMP, file: file }));
         return;
     }
     process.exit(0);
