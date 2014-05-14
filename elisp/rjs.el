@@ -262,6 +262,15 @@
       (if (rjs-call-client "-r" loc)
           (rtags-handle-results-buffer)))))
 
+(defun rjs-cursor-info ()
+  (interactive)
+  (let ((loc (rjs-current-location)))
+    (unless loc
+      (error "RJS: Buffer is not visiting a file"))
+    (with-temp-buffer
+      (if (rjs-call-client "-u" loc)
+          (message "%s" (buffer-substring-no-properties (point-min) (point-max)))))))
+
 ;; (defun rjs-target (&optional filter)
 ;;   (let ((path (buffer-file-name))
 ;;         (location (rjs-current-location))

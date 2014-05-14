@@ -12,6 +12,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -r|--find-references [location]\n' +
                    '  -D|--dump-file [file]\n' +
                    '  -d|--dump\n' +
+                   '  -u|--cursor-info [location]\n' +
                    '  -N|--no-context\n' +
                    '  -v|--verbose\n' +
                    '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
@@ -51,9 +52,11 @@ var compiles = values('c', 'compile');
 var followSymbols = values('f', 'follow-symbol');
 var references = values('r', 'find-references');
 var dumps = values('D', 'dump-file');
+var cursorInfos = values('u', 'cursor-info');
 ['d', 'dump'].forEach(function(arg) { if (optimist.argv[arg]) dumps.push(true); });
 
-if (!compiles.length && !followSymbols.length && !references.length && !dumps.length) {
+if (!compiles.length && !followSymbols.length && !references.length
+    && !dumps.length && !cursorInfos.length) {
     console.error(usageString.replace("$0", __filename));
     process.exit(1);
 }
@@ -117,6 +120,12 @@ function sendNext() {
         send(msg);
         return;
     }
+
+    if (cursorInfos.length) {
+        location = createLocation(cursorInfos.splice(0, 1)[0]);
+        send({ type: rjs.MESSAGE_CURSOR_INFO, location: location });
+        return;
+    }
     process.exit(0);
 }
 try {
@@ -139,8 +148,8 @@ sock.on('message', function(data) {
         response.errorString = rjs.errorCodeToString(response.error);
     if (verbose)
         console.log("GOT RESPONSE", response);
-    function printLocation(loc) {
-        var out = lastFile + ',' + loc[0];
+    function printLocation(loc, header) {
+        var out = (header || "") + lastFile + ',' + loc[0];
         if (showContext) {
             var contents = fileCache[lastFile];
             if (!contents) {
@@ -165,6 +174,16 @@ sock.on('message', function(data) {
         response.references.forEach(printLocation);
     } else if (response.dump) {
         console.log(response.dump);
+    } else if (response.cursorInfo) {
+        printLocation(response.cursorInfo.location);
+        console.log("Name:",
+                    response.cursorInfo.name,
+                    response.cursorInfo.definition ? "Definition" : "Reference");
+        if (response.cursorInfo.references && response.cursorInfo.references.length) {
+            console.log("References:");
+            response.cursorInfo.references.forEach(function(loc) { printLocation(loc, "  "); });
+        }
+        // console.log(response.cursorInfo);
     }
     if (response.error != rjs.ERROR_MORE_DATA)
         sendNext();
