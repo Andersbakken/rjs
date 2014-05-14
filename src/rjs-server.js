@@ -58,6 +58,8 @@ server.on('connection', function(conn) {
                         send({error: rjs.ERROR_READFAILURE});
                     return false;
                 }
+                if (conn)
+                    send({error: rjs.ERROR_OK});
 
                 var ret = indexer.indexFile(source, msg.file, verbose);
                 if (verbose) {
@@ -70,8 +72,6 @@ server.on('connection', function(conn) {
                 if (verbose)
                     console.log(JSON.stringify(ret, null, 4));
                 db[msg.file] = ret;
-                if (conn)
-                    send({error: rjs.ERROR_OK});
                 return true;
             };
             if (index()) {
@@ -114,14 +114,17 @@ server.on('connection', function(conn) {
             }
             break;
         case rjs.MESSAGE_DUMP:
-            if (!db[msg.file]) {
-                send({error: rjs.ERROR_FILE_NOT_INDEXED});
-                break;
-            }
-            try {
-                send({ error: rjs.ERROR_OK, dump: JSON.stringify(db[msg.file]) });
-            } catch (err) {
-                console.log("CAUGHT", err);
+            if (msg.file) {
+                if (!db[msg.file]) {
+                    send({error: rjs.ERROR_FILE_NOT_INDEXED});
+                    break;
+                }
+                send({ error: rjs.ERROR_OK, dump: JSON.stringify(db[msg.file], null, 4) });
+            } else {
+                for (var file in db) {
+                    send({ error: rjs.ERROR_MORE_DATA, dump: file });
+                }
+                send({ error: rjs.ERROR_OK });
             }
             break;
         }

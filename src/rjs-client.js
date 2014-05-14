@@ -10,7 +10,8 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -c|--compile [file]\n' +
                    '  -f|--follow-symbol [location]\n' +
                    '  -r|--find-references [location]\n' +
-                   '  -d|--dump [file]\n' +
+                   '  -D|--dump-file [file]\n' +
+                   '  -d|--dump\n' +
                    '  -N|--no-context\n' +
                    '  -v|--verbose\n' +
                    '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
@@ -34,17 +35,14 @@ var showContext = true;
 if (!optimist.argv.port)
     optimist.argv.port = rjs.defaultPort;
 
-var valid = false;
 function values() {
     var ret = [];
     for (var i=0; i<arguments.length; ++i) {
         var val = optimist.argv[arguments[i]];
         if (typeof val === 'string') {
             ret.push(val);
-            valid = true;
         } else if (val instanceof Array) {
             ret = ret.concat(val);
-            valid = true;
         }
     }
     return ret;
@@ -52,8 +50,10 @@ function values() {
 var compiles = values('c', 'compile');
 var followSymbols = values('f', 'follow-symbol');
 var references = values('r', 'find-references');
-var dumps = values('d', 'dump');
-if (!valid) {
+var dumps = values('D', 'dump-file');
+['d', 'dump'].forEach(function(arg) { if (optimist.argv[arg]) dumps.push(true); });
+
+if (!compiles.length && !followSymbols.length && !references.length && !dumps.length) {
     console.error(usageString.replace("$0", __filename));
     process.exit(1);
 }
@@ -62,6 +62,8 @@ var server = 'ws://localhost:' + optimist.argv.port + '/';
 // console.log("server", server);
 var lastFile;
 function sendNext() {
+    function send(obj) { sock.send(JSON.stringify(obj)); }
+
     function createLocation(fileAndOffset) {
         var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
         // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
@@ -86,26 +88,33 @@ function sendNext() {
             process.exit(4);
         }
 
-        sock.send(JSON.stringify({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c) }));
+        send({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c) });
         return;
     }
 
     var location;
     if (followSymbols.length) {
         location = createLocation(followSymbols.splice(0, 1)[0]);
-        sock.send(JSON.stringify({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: location }));
+        send({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: location });
         return;
     }
 
     if (references.length) {
         location = createLocation(references.splice(0, 1)[0]);
-        sock.send(JSON.stringify({ type: rjs.MESSAGE_FIND_REFERENCES, location: location }));
+        send({ type: rjs.MESSAGE_FIND_REFERENCES, location: location });
         return;
     }
 
     if (dumps.length) {
-        var file = path.resolve(dumps.splice(0, 1)[0]);
-        sock.send(JSON.stringify({ type: rjs.MESSAGE_DUMP, file: file }));
+        var val = dumps.splice(0, 1)[0];
+        var msg = { type: rjs.MESSAGE_DUMP };
+        if (typeof val === 'string')
+            msg.file = path.resolve(val);
+        if (verbose) {
+            console.log("calling dump with", msg, val);
+        }
+
+        send(msg);
         return;
     }
     process.exit(0);
@@ -127,8 +136,9 @@ sock.on('message', function(data) {
         process.exit(5);
     }
     if (verbose && typeof response.error !== undefined)
-        response.error = rjs.errorCodeToString(response.error);
-    // console.log("GOT RESPONSE", response);
+        response.errorString = rjs.errorCodeToString(response.error);
+    if (verbose)
+        console.log("GOT RESPONSE", response);
     function printLocation(loc) {
         var out = lastFile + ',' + loc[0];
         if (showContext) {
@@ -153,10 +163,10 @@ sock.on('message', function(data) {
         printLocation(response.target);
     } else if (response.references) {
         response.references.forEach(printLocation);
+    } else if (response.dump) {
+        console.log(response.dump);
     }
-    sendNext();
+    if (response.error != rjs.ERROR_MORE_DATA)
+        sendNext();
 });
 
-
-//     }
-// }
