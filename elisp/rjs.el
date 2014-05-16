@@ -195,7 +195,8 @@
         (rjs-log (concat client " " (combine-and-quote-strings arguments)))
         (let ((status (apply #'call-process client nil output nil arguments)))
           (unless (or noerror (= status 0))
-            (message "Error: %d\n%s\n" status (buffer-substring-no-properties (point-min) (point-max))))
+            (message (concat "Error: " (number-to-string status)
+                             (if (> (point-max) (point-min)) (concat "\n" (buffer-substring-no-properties (point-min) (point-max)) "\n")))))
           (goto-char (point-min))
           (= status 0))))))
 

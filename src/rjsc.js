@@ -128,15 +128,18 @@ function sendNext() {
     }
     process.exit(0);
 }
-try {
-    sock = new ws(server);
-} catch (err) {
-    console.error("Can't seem to connect to server at", server, " Are you sure it's running?");
-    process.exit(2);
-}
+sock = new ws(server);
+sock.on('error', function(err) {
+    if (err.errno === 'ECONNREFUSED') {
+        // console.error("Can't seem to connect to server at", server, " Are you sure it's running?");
+        process.exit(2);
+    }
+});
+
 sock.on('open', function() {
     sendNext();
 });
+
 var fileCache = {};
 sock.on('message', function(data) {
     var response = safe.JSON.parse(data);
@@ -188,4 +191,5 @@ sock.on('message', function(data) {
     if (response.error != rjs.ERROR_MORE_DATA)
         sendNext();
 });
+
 
