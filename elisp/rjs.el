@@ -261,7 +261,7 @@
       (error "RJS: Buffer is not visiting a file"))
     (with-current-buffer (rjs-get-buffer)
       (if (rjs-call-client "-r" loc)
-          (rtags-handle-results-buffer)))))
+          (rjs-handle-results-buffer)))))
 
 (defun rjs-cursor-info ()
   (interactive)
@@ -446,8 +446,8 @@
 ;;                      (message "%s - %s - 0x%X" (rjs-current-symbol-name info) enumval (string-to-number enumval)))))))
 ;;           (t (message "RJS: No enum here") nil))))
 
-;; (defun rjs-buffer-is-multibyte ()
-;;   (string-match "\\butf\\b" (symbol-name buffer-file-coding-system)))
+(defun rjs-buffer-is-multibyte ()
+  (string-match "\\butf\\b" (symbol-name buffer-file-coding-system)))
 
 ;; (defun rjs-buffer-is-dos()
 ;;   (string-match "\\bdos\\b" (symbol-name buffer-file-coding-system)))
@@ -717,10 +717,10 @@
   :group 'rjs
   :type 'string)
 
-;; (defcustom rjs-max-bookmark-count 100
-;;   "How many bookmarks to keep in stack"
-;;   :group 'rjs
-;;   :type 'integer)
+(defcustom rjs-max-bookmark-count 100
+  "How many bookmarks to keep in stack"
+  :group 'rjs
+  :type 'integer)
 
 (defcustom rjs-log-enabled t
   "If t, log rjs commands and responses"
@@ -1400,7 +1400,7 @@
 ;; (defun rjs-has-filemanager (&optional buffer)
 ;;   (rjs-buffer-status buffer))
 
-(defun rjs-handle-results-buffer (&key noautojump)
+(defun* rjs-handle-results-buffer (&key noautojump)
   (rjs-reset-bookmarks)
   (cond ((= (point-min) (point-max))
          (message "RJS: No results") nil)
@@ -1465,7 +1465,7 @@
 ;;                 (setq windows nil))
 ;;               (setq windows (cdr windows))))))))
 
-(defun rjs-select (&key other-window remove show)
+(defun* rjs-select (&key other-window remove show)
   (interactive "P")
   (let* ((line (line-number-at-pos))
          (bookmark (format "R_%d" line))
@@ -1478,7 +1478,7 @@
              (other-window 1))
            (bookmark-jump bookmark)
            (rjs-location-stack-push))
-          (t (rjs-goto-location (buffer-substring-no-properties (point-at-bol) (point-at-eol)) nil other-window)))
+          (t (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)) :other-window other-window)))
     (if remove
         (delete-window window)
       (if show

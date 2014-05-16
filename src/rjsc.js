@@ -64,8 +64,9 @@ var sock;
 var server = 'ws://localhost:' + optimist.argv.port + '/';
 // console.log("server", server);
 var lastFile;
+var lastMessage;
 function sendNext() {
-    function send(obj) { sock.send(JSON.stringify(obj)); }
+    function send(obj) { lastMessage = obj; sock.send(JSON.stringify(obj)); }
 
     function createLocation(fileAndOffset) {
         var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
@@ -174,7 +175,7 @@ sock.on('message', function(data) {
     if (response.target) {
         printLocation(response.target);
     } else if (response.references) {
-        response.references.forEach(printLocation);
+        response.references.forEach(function(ref) { printLocation(ref); });
     } else if (response.dump) {
         console.log(response.dump);
     } else if (response.cursorInfo) {

@@ -118,24 +118,34 @@ server.on('connection', function(conn) {
                 send({error: rjs.ERROR_FILE_NOT_INDEXED});
                 break;
             }
-            var symbol = indexer.findLocation(db[msg.location.file].symbols, msg.location.offset);
-            if (!symbol) {
+            var result = indexer.findLocation(db[msg.location.file].symbols, msg.location.offset);
+            if (!result) {
                 send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
                 break;
             }
             if (verbose)
-                console.log("Found symbol", symbol);
+                console.log("Found symbol", result);
             if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
-                send({ target: symbol.target });
+                send({ target: result.symbol.target });
             } else if (msg.type === rjs.MESSAGE_CURSOR_INFO) {
-                send({ cursorInfo: symbol });
+                send({ cursorInfo: result.symbol });
             } else {
-                if (!symbol.definition && symbol.target) {
-                    var sym = indexer.findLocation(db[msg.location.file].symbols, symbol.target[0]);
+                var startLoc = result.pos;
+                if (!result.symbol.definition && result.symbol.target) {
+                    var sym = indexer.findLocation(db[msg.location.file].symbols, result.symbol.target[0]);
                     if (sym)
-                        symbol = sym;
+                        result = sym;
                 }
-                send({ references: symbol.references });
+                var references = result.symbol.references;
+                for (var idx=0; idx<result.symbol.references.length - 1; ++idx) { // if the current is the last in the array there's no reason to resort
+                    if (result.symbol.references[idx][0] === startLoc) {
+                        references = result.symbol.references.slice(idx + 1).concat(result.symbol.references.slice(0, idx + 1));
+                        break;
+                    }
+                }
+
+                // console.log(result.symbol.references);
+                send({ references: references });
             }
             break;
         case rjs.MESSAGE_DUMP:
