@@ -184,10 +184,10 @@
 
 (defun* rjs-call-client (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
   (save-excursion
-    (let ((client (rjs-executable-find "rjs-client.js")) proc)
+    (let ((client (rjs-executable-find "rjsc.js")) proc)
       (if (not client)
           (progn
-            (unless noerror (error "Can't find rc"))
+            (unless noerror (error "Can't find rjsc.js"))
             nil)
         (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
         (setq arguments (rjs-remove-keyword-params arguments))
@@ -244,7 +244,7 @@
   (if (buffer-file-name)
       (concat (buffer-file-name) "," (number-to-string (1- (point))))))
 
-(defun rjs-follow-symbol-at-point ()
+(defun rjs-find-symbol-at-point ()
   (interactive)
   (let ((loc (rjs-current-location)))
     (unless loc
@@ -286,6 +286,7 @@
 ;;                  (setq rjs-last-request-not-indexed t) nil)
 ;;                 (t (buffer-substring-no-properties (point-min) (- (point-max) 1))))))))
 
+(defvar rjs-is-js-file-function nil)
 (defun rjs-is-js-file (&optional file-or-buffer)
   (cond ((bufferp file-or-buffer)
          (setq file-or-buffer (buffer-file-name file-or-buffer)))
