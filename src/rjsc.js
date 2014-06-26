@@ -10,11 +10,12 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -c|--compile [file]\n' +
                    '  -f|--follow-symbol [location]\n' +
                    '  -r|--find-references [location]\n' +
-                   '  -D|--dump-file [file]\n' +
+                   '  -F|--dump-file [file]\n' +
                    '  -d|--dump\n' +
                    '  -u|--cursor-info [location]\n' +
                    '  -N|--no-context\n' +
                    '  -v|--verbose\n' +
+                   "  -D|--daemon\n" +
                    '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
 
 optimist.usage(usageString);
@@ -30,41 +31,74 @@ var verbose = 0;
 });
 
 var showContext = true;
+var daemon = false;
 ['N', 'no-context'].forEach(function(arg) { if (optimist.argv[arg]) showContext = false; });
+['D', 'daemon'].forEach(function(arg) { if (optimist.argv[arg]) daemon = true; });
 
 // console.log(optimist.argv.port);
 if (!optimist.argv.port)
     optimist.argv.port = rjs.defaultPort;
 
-function values() {
-    var ret = [];
-    for (var i=0; i<arguments.length; ++i) {
-        var val = optimist.argv[arguments[i]];
-        if (typeof val === 'string') {
-            ret.push(val);
-        } else if (val instanceof Array) {
-            ret = ret.concat(val);
+var compiles, followSymbols, references, dumps, cursorInfos;
+function updateCommmands(argv)
+{
+    function values() {
+        var ret = [];
+        for (var i=0; i<arguments.length; ++i) {
+            if (argv.hasOwnProperty(arguments[i])) {
+                var val = argv[arguments[i]];
+                if (val instanceof Array) {
+                    ret = ret.concat(val);
+                } else {
+                    ret.push(val);
+                }
+            }
         }
+        return ret;
     }
-    return ret;
+    compiles = values('c', 'compile');
+    followSymbols = values('f', 'follow-symbol');
+    references = values('r', 'find-references');
+    dumps = values('F', 'dump-file');
+    cursorInfos = values('u', 'cursor-info');
+    ['d', 'dump'].forEach(function(arg) { if (argv[arg]) dumps.push(true); });
 }
-var compiles = values('c', 'compile');
-var followSymbols = values('f', 'follow-symbol');
-var references = values('r', 'find-references');
-var dumps = values('D', 'dump-file');
-var cursorInfos = values('u', 'cursor-info');
-['d', 'dump'].forEach(function(arg) { if (optimist.argv[arg]) dumps.push(true); });
+updateCommmands(optimist.argv);
 
 if (!compiles.length && !followSymbols.length && !references.length
-    && !dumps.length && !cursorInfos.length) {
+    && !dumps.length && !cursorInfos.length && !daemon) {
     console.error(usageString.replace("$0", __filename));
     process.exit(1);
+}
+if (daemon) {
+    process.stdin.setEncoding('utf8');
+    var pendingStdIn = "";
+    process.stdin.on('readable', function() {
+        pendingStdIn += process.stdin.read();
+        var commands = pendingStdIn.split('\n');
+        if (commands.length > 1) {
+            for (var i=0; i<commands.length - 1; ++i) {
+
+
+            }
+            commands
+        }
+        console
+        // if (chunk !== null) {
+        //     process.stdout.write('data: ' + chunk);
+        // }
+    });
+
 }
 var sock;
 var server = 'ws://localhost:' + optimist.argv.port + '/';
 // console.log("server", server);
 var lastFile;
 var lastMessage;
+function finish(code) {
+    if (!daemon)
+        process.exit(code);
+}
 function sendNext() {
     function send(obj) { lastMessage = obj; sock.send(JSON.stringify(obj)); }
 
@@ -73,12 +107,12 @@ function sendNext() {
         // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
         if (!caps) {
             console.error("Can't parse location", fileAndOffset);
-            process.exit(7);
+            finish(7);
         }
         var stat = safe.fs.statSync(caps[1]);
         if (!stat || !stat.isFile()) {
             console.error(caps[1], "doesn't seem to be a file");
-            process.exit(8);
+            finish(8);
         }
         lastFile = path.resolve(caps[1]);
         // return { file: caps[1], line: caps[2], column: caps[3] };
@@ -89,7 +123,7 @@ function sendNext() {
         var stat = safe.fs.statSync(c);
         if (!stat || !stat.isFile()) {
             console.error(c, 'does not seem to be a file');
-            process.exit(4);
+            finish(4);
         }
 
         send({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c) });
@@ -127,26 +161,34 @@ function sendNext() {
         send({ type: rjs.MESSAGE_CURSOR_INFO, location: location });
         return;
     }
-    process.exit(0);
+    finish(0);
 }
-sock = new ws(server);
-sock.on('error', function(err) {
-    if (err.errno === 'ECONNREFUSED') {
-        // console.error("Can't seem to connect to server at", server, " Are you sure it's running?");
-        process.exit(2);
-    }
-});
-
-sock.on('open', function() {
-    sendNext();
-});
+function initSocket()
+{
+    sock = new ws(server);
+    sock.on('error', function(err) {
+        if (err.errno === 'ECONNREFUSED') {
+            // console.error("Can't seem to connect to server at", server, " Are you sure it's running?");
+            // ### this is not working
+            if (daemon) {
+                setTimeout(initSocket, 1000);
+            } else {
+                finish(2);
+            }
+        }
+    });
+    sock.on('open', function() {
+        sendNext();
+    });
+}
+initSocket();
 
 var fileCache = {};
 sock.on('message', function(data) {
     var response = safe.JSON.parse(data);
     if (!response) {
         console.error("Invalid response", data);
-        process.exit(5);
+        finish(5);
     }
     if (verbose && typeof response.error !== undefined)
         response.errorString = rjs.errorCodeToString(response.error);
