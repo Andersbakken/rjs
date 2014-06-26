@@ -15,7 +15,10 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -u|--cursor-info [location]\n' +
                    '  -N|--no-context\n' +
                    '  -v|--verbose\n' +
-                   "  -D|--daemon\n" +
+                   '  -D|--daemon\n' +
+                   '  -F|--find-symbols [symbolName]\n' +
+                   '  -S|--list-symbols [optional prefix]\n' +
+                   '  -P|--file [file]\n' +
                    '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
 
 var parseArgsOptions = {
@@ -29,7 +32,10 @@ var parseArgsOptions = {
         N: 'no-context',
         v: 'verbose',
         D: 'daemon',
-        p: 'port'
+        p: 'port',
+        F: 'find-symbols',
+        S: 'list-symbols',
+        P: 'file'
     },
     default: {
         p: rjs.defaultPort
@@ -59,6 +65,8 @@ var args = parseArgs(process.argv.slice(2), parseArgsOptions);
         if (arg != "_" && args.hasOwnProperty(arg) && !validArgs[arg])
             exit(1, "Unrecognized argument " + arg, true);
     }
+    if (args['file'] instanceof Array)
+        exit(1, "Too many --file arguments", true);
 })();
 
 var verbose = args.verbose;
@@ -74,13 +82,20 @@ var commands = [];
 function addCommands(argv)
 {
     var parsed = argv ? parseArgs(argv, parseArgsOptions) : args;
+    var file = parsed['file'];
     function add(arg) {
+        function createCommand(val) {
+            var cmd = { type: arg, value: val };
+            if (file)
+                cmd.file = file;
+            commands.push(cmd);
+        }
         var val = parsed[arg];
         if (val) {
             if (val instanceof Array) {
-                val.forEach(function(v) { commands.push({ type: arg, value: v }) });
+                val.forEach(createCommand);
             } else {
-                commands.push({ type: arg, value: val });
+                createCommand(val);
             }
         }
     }
@@ -91,6 +106,8 @@ function addCommands(argv)
     add('dump-file');
     add('cursor-info');
     add('dump');
+    add('find-symbols');
+    add('list-symbols');
 }
 
 addCommands(undefined);
@@ -123,7 +140,12 @@ function createLocation(fileAndOffset) {
 }
 
 function sendNext() {
-    function send(obj) { lastMessage = obj; socket.send(JSON.stringify(obj)); }
+    function send(obj) {
+        lastMessage = obj;
+        socket.send(JSON.stringify(obj));
+        if (verbose)
+            console.log("Sending message", obj);
+    }
     if (!commands.length) {
         readyForCommand = true;
         finish(0);
@@ -159,6 +181,12 @@ function sendNext() {
     case 'cursor-info':
         send({ type: rjs.MESSAGE_CURSOR_INFO, location: createLocation(c.value) });
         break;
+    case 'list-symbols':
+        send({ type: rjs.MESSAGE_LIST_SYMBOLS, file: c.file, prefix: typeof c.value === 'string' ? c.value : undefined });
+        break;
+    case 'find-symbols':
+        send({ type: rjs.MESSAGE_FIND_SYMBOLS, file: c.file, symbolName: c.value });
+        break;
     }
 }
 
@@ -176,9 +204,9 @@ socket.on('message', function(data) {
     if (verbose && typeof response.error !== undefined)
         response.errorString = rjs.errorCodeToString(response.error);
     if (verbose)
-        console.log("GOT RESPONSE", response);
+        console.log("Got response", response);
     function printLocation(loc, header) {
-        var out = (header || "") + lastFile + ',' + loc[0];
+        var out = (header || "") + loc.file + ',' + loc.offset;
         if (showContext) {
             var contents = fileCache[lastFile];
             if (!contents) {
@@ -187,9 +215,9 @@ socket.on('message', function(data) {
                     fileCache[lastFile] = contents;
                 }
             }
-            if (contents && contents.length > loc[0]) {
-                var prevNewLine = contents.lastIndexOf('\n', loc[0]) + 1;
-                var nextNewLine = contents.indexOf('\n', loc[0]);
+            if (contents && contents.length > loc.offset) {
+                var prevNewLine = contents.lastIndexOf('\n', loc.offset) + 1;
+                var nextNewLine = contents.indexOf('\n', loc.offset);
                 if (nextNewLine == -1)
                     nextNewLine = contents.length;
                 out += '\t' + contents.substring(prevNewLine, nextNewLine - 1);
@@ -200,7 +228,9 @@ socket.on('message', function(data) {
     if (response.target) {
         printLocation(response.target);
     } else if (response.references) {
-        response.references.forEach(function(ref) { printLocation(ref); });
+        response.references.forEach(printLocation);
+    } else if (response.locations) {
+        response.locations.forEach(printLocation);
     } else if (response.dump) {
         console.log(response.dump);
     } else if (response.cursorInfo) {
@@ -213,6 +243,8 @@ socket.on('message', function(data) {
             response.cursorInfo.references.forEach(function(loc) { printLocation(loc, "  "); });
         }
         // console.log(response.cursorInfo);
+    } else if (response.symbolNames) {
+        response.symbolNames.forEach(function(name) { console.log(name); });
     }
     if (response.error != rjs.ERROR_MORE_DATA)
         sendNext();
