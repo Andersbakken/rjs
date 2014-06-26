@@ -5,25 +5,14 @@ var fs = require('fs');
 var ws = require('ws');
 var rjs = require('rjs');
 var indexer = require('indexer');
-var optimist = require('optimist');
-var usageString = 'Usage:\n$0 ...options\n  -v|--verbose\n  -p|--port [location]\n';
-optimist.usage(usageString);
-optimist.default('port', rjs.defaultPort);
-if (!optimist.argv.port)
-    optimist.argv.port = rjs.defaultPort;
+var parseArgs = require('minimist');
+var usageString = 'Usage:\n$0 ...options\n  -v|--verbose\n  -p|--port [default ' + rjs.defaultPort + ']\n';
+var args = parseArgs(process.argv.slice(2), { alias: { v: 'verbose', 'p': 'port' }, default: { p: rjs.defaultPort } });
 
-var verbose = 0;
-['v', 'verbose'].forEach(function(arg) {
-    if (typeof optimist.argv[arg] === 'boolean') {
-        ++verbose;
-    } else if (optimist.argv[arg] instanceof Array) {
-        verbose += optimist.argv[arg].length;
-    }
-});
+var verbose = args.verbose;
 
 var db = {};
-// console.log(optimist.argv);
-var server = new ws.Server({port:optimist.argv.port});
+var server = new ws.Server({ port:args.port });
 server.on('connection', function(conn) {
     function send(obj) {
         if (!obj.error)
