@@ -201,13 +201,13 @@
           (= status 0))))))
 
 
-(defun* rjs-goto-location (&key location nobookmark other-window)
+(defun* rjs-goto-location (&key location no-location-stack other-window)
   (when (and (> (length location) 0)
              (string-match "\\(.*\\),\\([0-9]+\\)" location))
     (let ((offset (string-to-number (match-string-no-properties 2 location))))
       (rjs-find-file-or-buffer (match-string-no-properties 1 location) other-window)
       (rjs-goto-offset offset)
-      (unless nobookmark
+      (unless no-location-stack
         (rjs-location-stack-push))
       t)))
 
@@ -239,7 +239,7 @@
   ;;            (if (string-match "^ +\\(.*\\)$" location)
   ;;                (setq location (match-string-no-properties 1 location)))
   ;;            (rjs-find-file-or-buffer location other-window)))
-  ;;     (unless nobookmark (rjs-location-stack-push))))
+  ;;     (unless no-location-stack (rjs-location-stack-push))))
 
 (defun rjs-current-location ()
   (if (buffer-file-name)
@@ -251,8 +251,9 @@
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
     (with-temp-buffer
-      (if (rjs-call-client "-f" loc)
-          (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
+      (when (rjs-call-client "-f" loc)
+        (rjs-location-stack-push loc)
+        (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
 
 (defun rjs-find-references-at-point ()
   (interactive)
@@ -529,7 +530,7 @@
 ;;   (beginning-of-line)
 ;;   (forward-char (1- column)))
 
-;; (defun rjs-goto-location (location &optional nobookmark other-window)
+;; (defun rjs-goto-location (location &optional no-location-stack other-window)
 ;;   "Go to a location passed in. It can be either: file,12 or file:13:14 or plain file"
 ;;   ;; (message (format "rjs-goto-location \"%s\"" location))
 ;;   (when (> (length location) 0)
@@ -560,7 +561,7 @@
 ;;            (if (string-match "^ +\\(.*\\)$" location)
 ;;                (setq location (match-string-no-properties 1 location)))
 ;;            (rjs-find-file-or-buffer location other-window)))
-;;     (unless nobookmark (rjs-location-stack-push))))
+;;     (unless no-location-stack (rjs-location-stack-push))))
 
 ;; (defun rjs-find-symbols-by-name-internal (prompt switch &optional filter regexp-filter)
 ;;   (rjs-save-location)
@@ -605,16 +606,19 @@
 
 (defvar rjs-location-stack-index 0)
 (defvar rjs-location-stack nil)
+;;(setq rjs-location-stack-index 0)
+;;(setq rjs-location-stack nil)
 
-(defun rjs-location-stack-push ()
-  (let ((bm (rjs-current-location)))
-    (while (> rjs-location-stack-index 0)
-      (decf rjs-location-stack-index)
-      (pop rjs-location-stack))
-    (unless (string= bm (nth 0 rjs-location-stack))
-      (push bm rjs-location-stack)
-      (if (> (length rjs-location-stack) rjs-max-bookmark-count)
-          (nbutlast rjs-location-stack (- (length rjs-location-stack) rjs-max-bookmark-count))))))
+(defun rjs-location-stack-push (&optional location)
+  (unless location
+    (setq location (rjs-current-location)))
+  (while (> rjs-location-stack-index 0)
+    (decf rjs-location-stack-index)
+    (pop rjs-location-stack))
+  (unless (string= location (nth 0 rjs-location-stack))
+    (push location rjs-location-stack)
+    (if (> (length rjs-location-stack) rjs-max-bookmark-count)
+        (nbutlast rjs-location-stack (- (length rjs-location-stack) rjs-max-bookmark-count)))))
 
 ;;;###autoload
 (defun rjs-location-stack-jump (by)
@@ -623,11 +627,11 @@
   (let ((instack (nth rjs-location-stack-index rjs-location-stack))
         (cur (rjs-current-location)))
     (if (not (string= instack cur))
-        (rjs-goto-location :location instack :nobookmark t)
+        (rjs-goto-location :location instack :no-location-stack t)
       (let ((target (+ rjs-location-stack-index by)))
         (when (and (>= target 0) (< target (length rjs-location-stack)))
           (setq rjs-location-stack-index target)
-          (rjs-goto-location :location (nth rjs-location-stack-index rjs-location-stack) :nobookmark t))))))
+          (rjs-goto-location :location (nth rjs-location-stack-index rjs-location-stack) :no-location-stack t))))))
 
 ;; ;; **************************** API *********************************
 
