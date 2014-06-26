@@ -4,7 +4,7 @@ var fs = require('fs');
 var rjs = require('rjs');
 var ws = require('ws');
 var path = require('path');
-var optimist = require('optimist');
+var parseArgs = require('minimist');
 var safe = require('safetydance');
 var usageString = ('Usage:\n$0 ...options\n' +
                    '  -c|--compile [file]\n' +
@@ -18,173 +18,156 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    "  -D|--daemon\n" +
                    '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
 
-optimist.usage(usageString);
-optimist.default('port', rjs.defaultPort); // default not working?
-
-var verbose = 0;
-['v', 'verbose'].forEach(function(arg) {
-    if (typeof optimist.argv[arg] === 'boolean') {
-        ++verbose;
-    } else if (optimist.argv[arg] instanceof Array) {
-        verbose += optimist.argv[arg].length;
+var parseArgsOptions = {
+    alias: {
+        c: 'compile',
+        f: 'follow-symbol',
+        r: 'find-references',
+        F: 'dump-file',
+        d: 'dump',
+        u: 'cursor-info',
+        N: 'no-context',
+        v: 'verbose',
+        D: 'daemon',
+        p: 'port'
+    },
+    default: {
+        p: rjs.defaultPort
     }
-});
+};
 
-var showContext = true;
-var daemon = false;
-['N', 'no-context'].forEach(function(arg) { if (optimist.argv[arg]) showContext = false; });
-['D', 'daemon'].forEach(function(arg) { if (optimist.argv[arg]) daemon = true; });
-
-// console.log(optimist.argv.port);
-if (!optimist.argv.port)
-    optimist.argv.port = rjs.defaultPort;
-
-var compiles, followSymbols, references, dumps, cursorInfos;
-function updateCommmands(argv)
+function exit(code, message, showUsage)
 {
-    function values() {
-        var ret = [];
-        for (var i=0; i<arguments.length; ++i) {
-            if (argv.hasOwnProperty(arguments[i])) {
-                var val = argv[arguments[i]];
-                if (val instanceof Array) {
-                    ret = ret.concat(val);
-                } else {
-                    ret.push(val);
-                }
+    if (showUsage)
+        console.error(usageString.replace("$0", __filename));
+    if (message)
+        console.error(message);
+    process.exit(code);
+}
+var args = parseArgs(process.argv.slice(2), parseArgsOptions);
+
+(function() {
+    if (args['_'].length)
+        exit(1, "Invalid arguments", true);
+    var validArgs = {};
+    var arg;
+    for (arg in parseArgsOptions.alias) {
+        validArgs[arg] = true;
+        validArgs[parseArgsOptions.alias[arg]] = true;
+    }
+    for (arg in args) {
+        if (arg != "_" && args.hasOwnProperty(arg) && !validArgs[arg])
+            exit(1, "Unrecognized argument " + arg, true);
+    }
+})();
+
+var verbose = args.verbose;
+var showContext = !args['no-context'];
+var daemon = args.daemon;
+var socket;
+var readyForCommand = false;
+var server = 'ws://localhost:' + args.port + '/';
+var lastFile;
+var lastMessage;
+
+var commands = [];
+function addCommands(argv)
+{
+    var parsed = argv ? parseArgs(argv, parseArgsOptions) : args;
+    function add(arg) {
+        var val = parsed[arg];
+        if (val) {
+            if (val instanceof Array) {
+                val.forEach(function(v) { commands.push({ type: arg, value: v }) });
+            } else {
+                commands.push({ type: arg, value: val });
             }
         }
-        return ret;
     }
-    compiles = values('c', 'compile');
-    followSymbols = values('f', 'follow-symbol');
-    references = values('r', 'find-references');
-    dumps = values('F', 'dump-file');
-    cursorInfos = values('u', 'cursor-info');
-    ['d', 'dump'].forEach(function(arg) { if (argv[arg]) dumps.push(true); });
-}
-updateCommmands(optimist.argv);
 
-if (!compiles.length && !followSymbols.length && !references.length
-    && !dumps.length && !cursorInfos.length && !daemon) {
+    add('compile');
+    add('follow-symbol');
+    add('find-references');
+    add('dump-file');
+    add('cursor-info');
+    add('dump');
+}
+
+addCommands(undefined);
+
+if (!commands.length && !daemon) {
     console.error(usageString.replace("$0", __filename));
     process.exit(1);
 }
-if (daemon) {
-    process.stdin.setEncoding('utf8');
-    var pendingStdIn = "";
-    process.stdin.on('readable', function() {
-        pendingStdIn += process.stdin.read();
-        var commands = pendingStdIn.split('\n');
-        if (commands.length > 1) {
-            for (var i=0; i<commands.length - 1; ++i) {
 
-
-            }
-            commands
-        }
-        console
-        // if (chunk !== null) {
-        //     process.stdout.write('data: ' + chunk);
-        // }
-    });
-
-}
-var sock;
-var server = 'ws://localhost:' + optimist.argv.port + '/';
-// console.log("server", server);
-var lastFile;
-var lastMessage;
 function finish(code) {
     if (!daemon)
         process.exit(code);
 }
+
+function createLocation(fileAndOffset) {
+    var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
+    // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
+    if (!caps) {
+        console.error("Can't parse location", fileAndOffset);
+        finish(7);
+    }
+    var stat = safe.fs.statSync(caps[1]);
+    if (!stat || !stat.isFile()) {
+        console.error(caps[1], "doesn't seem to be a file");
+        finish(8);
+    }
+    lastFile = path.resolve(caps[1]);
+    // return { file: caps[1], line: caps[2], column: caps[3] };
+    return { file: lastFile, offset: caps[2] };
+}
+
 function sendNext() {
-    function send(obj) { lastMessage = obj; sock.send(JSON.stringify(obj)); }
-
-    function createLocation(fileAndOffset) {
-        var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
-        // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
-        if (!caps) {
-            console.error("Can't parse location", fileAndOffset);
-            finish(7);
-        }
-        var stat = safe.fs.statSync(caps[1]);
-        if (!stat || !stat.isFile()) {
-            console.error(caps[1], "doesn't seem to be a file");
-            finish(8);
-        }
-        lastFile = path.resolve(caps[1]);
-        // return { file: caps[1], line: caps[2], column: caps[3] };
-        return { file: lastFile, offset: caps[2] };
-    }
-    if (compiles.length) {
-        var c = compiles.splice(0, 1)[0];
-        var stat = safe.fs.statSync(c);
-        if (!stat || !stat.isFile()) {
-            console.error(c, 'does not seem to be a file');
-            finish(4);
-        }
-
-        send({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c) });
+    function send(obj) { lastMessage = obj; socket.send(JSON.stringify(obj)); }
+    if (!commands.length) {
+        readyForCommand = true;
+        finish(0);
         return;
     }
 
+    readyForCommand = false;
+    var c = commands.splice(0, 1)[0];
     var location;
-    if (followSymbols.length) {
-        location = createLocation(followSymbols.splice(0, 1)[0]);
-        send({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: location });
-        return;
-    }
-
-    if (references.length) {
-        location = createLocation(references.splice(0, 1)[0]);
-        send({ type: rjs.MESSAGE_FIND_REFERENCES, location: location });
-        return;
-    }
-
-    if (dumps.length) {
-        var val = dumps.splice(0, 1)[0];
-        var msg = { type: rjs.MESSAGE_DUMP };
-        if (typeof val === 'string')
-            msg.file = path.resolve(val);
-        if (verbose) {
-            console.log("calling dump with", msg, val);
+    switch (c.type) {
+    case 'compile':
+        var stat = safe.fs.statSync(c.value);
+        if (!stat || !stat.isFile()) {
+            console.error(c.value, 'does not seem to be a file');
+            finish(4);
+            return;
         }
 
-        send(msg);
-        return;
+        send({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c.value) });
+        break;
+    case 'follow-symbol':
+        send({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: createLocation(c.value) });
+        break;
+    case 'find-references':
+        send({ type: rjs.MESSAGE_FIND_REFERENCES, location: createLocation(c.value) });
+        break;
+    case 'dump':
+        send({ type: rjs.MESSAGE_DUMP });
+        break;
+    case 'dump-file':
+        send({ type: rjs.MESSAGE_DUMP, file: path.resolve(c.value) });
+        break;
+    case 'cursor-info':
+        send({ type: rjs.MESSAGE_CURSOR_INFO, location: createLocation(c.value) });
+        break;
     }
+}
 
-    if (cursorInfos.length) {
-        location = createLocation(cursorInfos.splice(0, 1)[0]);
-        send({ type: rjs.MESSAGE_CURSOR_INFO, location: location });
-        return;
-    }
-    finish(0);
-}
-function initSocket()
-{
-    sock = new ws(server);
-    sock.on('error', function(err) {
-        if (err.errno === 'ECONNREFUSED') {
-            // console.error("Can't seem to connect to server at", server, " Are you sure it's running?");
-            // ### this is not working
-            if (daemon) {
-                setTimeout(initSocket, 1000);
-            } else {
-                finish(2);
-            }
-        }
-    });
-    sock.on('open', function() {
-        sendNext();
-    });
-}
-initSocket();
+socket = new ws(server);
+socket.on('error', function(err) { process.exit(2); });
+socket.on('open', sendNext);
 
 var fileCache = {};
-sock.on('message', function(data) {
+socket.on('message', function(data) {
     var response = safe.JSON.parse(data);
     if (!response) {
         console.error("Invalid response", data);
@@ -234,5 +217,27 @@ sock.on('message', function(data) {
     if (response.error != rjs.ERROR_MORE_DATA)
         sendNext();
 });
+
+if (daemon) {
+    process.stdin.setEncoding('utf8');
+    var pendingStdIn = "";
+    process.stdin.on('readable', function() {
+        var read = process.stdin.read();
+        if (read) {
+            pendingStdIn += read;
+            var lines = pendingStdIn.split('\n');
+            if (lines.length > 1) {
+                for (var i=0; i<lines.length - 1; ++i) {
+                    addCommands(lines[i].split(' '));
+                }
+                pendingStdIn = lines[lines.length - 1] || "";
+                if (readyForCommand)
+                    sendNext();
+            }
+        }
+    });
+
+}
+
 
 
