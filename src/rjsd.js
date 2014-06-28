@@ -125,7 +125,7 @@ server.on('connection', function(conn) {
                 break;
             }
             function createLocation(loc) {
-                return { file: msg.location.file, offset: loc[0] };
+                return loc ? { file: msg.location.file, offset: loc[0] } : {};
             }
             if (verbose)
                 console.log("Found symbol", result);

@@ -192,7 +192,8 @@ function sendNext() {
 }
 
 socket = new ws(server);
-socket.on('error', function(err) { process.exit(2); });
+socket.on('error', function(err) { console.error("Unable to connect to server:", err.errno); process.exit(2); });
+socket.on('close', function(err) { console.error("Lost connection to server:", err); process.exit(3); });
 socket.on('open', sendNext);
 
 var fileCache = {};
@@ -247,8 +248,11 @@ socket.on('message', function(data) {
     } else if (response.symbolNames) {
         response.symbolNames.forEach(function(name) { console.log(name); });
     }
-    if (response.error != rjs.ERROR_MORE_DATA)
+    if (response.error != rjs.ERROR_MORE_DATA) {
+        if (daemon)
+            console.log('@END@' + rjs.messageTypeToString(response.type) + '@');
         sendNext();
+    }
 });
 
 if (daemon) {
