@@ -35,8 +35,11 @@ server.on('connection', function(conn) {
         }
 
         var msg = safe.JSON.parse(message);
-        if (verbose)
+        if (verbose) {
             console.log("got message", msg);
+        } else {
+            console.log("got message", rjs.messageTypeToString(msg.type));
+        }
         if (!msg) {
             send({error: rjs.ERROR_PROTOCOL_ERROR});
             return;
