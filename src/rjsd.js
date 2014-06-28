@@ -24,6 +24,8 @@ server.on('connection', function(conn) {
                 obj.error = rjs.ERROR_OK;
             if (typeof msgType !== 'undefined')
                 obj.type = msgType;
+            if (!conn)
+                console.error("connection is gone");
             conn.send(JSON.stringify(obj));
             if (verbose)
                 console.log("sending", obj);
@@ -83,7 +85,6 @@ server.on('connection', function(conn) {
                 return true;
             };
             if (index()) {
-                conn = undefined;
                 var onFileModified = function() {
                     var cached = db[fileName];
                     if (verbose)

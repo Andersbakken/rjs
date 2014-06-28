@@ -10,7 +10,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -c|--compile [file]\n' +
                    '  -f|--follow-symbol [location]\n' +
                    '  -r|--find-references [location]\n' +
-                   '  -F|--dump-file [file]\n' +
+                   '  -U|--dump-file [file]\n' +
                    '  -d|--dump\n' +
                    '  -u|--cursor-info [location]\n' +
                    '  -N|--no-context\n' +
@@ -26,7 +26,7 @@ var parseArgsOptions = {
         c: 'compile',
         f: 'follow-symbol',
         r: 'find-references',
-        F: 'dump-file',
+        U: 'dump-file',
         d: 'dump',
         u: 'cursor-info',
         N: 'no-context',
@@ -40,13 +40,13 @@ var parseArgsOptions = {
     default: {
         p: rjs.defaultPort
     },
-    boolean: [ "dump", "no-context", "verbose", "daemon" ]
+    boolean: [ 'dump', 'no-context', 'verbose', 'daemon' ]
 };
 
 function exit(code, message, showUsage)
 {
     if (showUsage)
-        console.error(usageString.replace("$0", __filename));
+        console.error(usageString.replace('$0', __filename));
     if (message)
         console.error(message);
     process.exit(code);
@@ -54,9 +54,8 @@ function exit(code, message, showUsage)
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
 (function() {
-    console.log(args);
     if (args['_'].length)
-        exit(1, "Invalid arguments", true);
+        exit(1, 'Invalid arguments', true);
     var validArgs = {};
     var arg;
     for (arg in parseArgsOptions.alias) {
@@ -64,11 +63,11 @@ var args = parseArgs(process.argv.slice(2), parseArgsOptions);
         validArgs[parseArgsOptions.alias[arg]] = true;
     }
     for (arg in args) {
-        if (arg != "_" && args.hasOwnProperty(arg) && !validArgs[arg])
-            exit(1, "Unrecognized argument " + arg, true);
+        if (arg != '_' && args.hasOwnProperty(arg) && !validArgs[arg])
+            exit(1, 'Unrecognized argument ' + arg, true);
     }
     if (args['file'] instanceof Array)
-        exit(1, "Too many --file arguments", true);
+        exit(1, 'Too many --file arguments', true);
 })();
 
 var verbose = args.verbose;
@@ -115,7 +114,7 @@ function addCommands(argv)
 addCommands(undefined);
 
 if (!commands.length && !daemon) {
-    console.error(usageString.replace("$0", __filename));
+    console.error(usageString.replace('$0', __filename));
     process.exit(1);
 }
 
@@ -128,12 +127,12 @@ function createLocation(fileAndOffset) {
     var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
     // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
     if (!caps) {
-        console.error("Can't parse location", fileAndOffset);
+        console.error('Can\'t parse location', fileAndOffset);
         finish(7);
     }
     var stat = safe.fs.statSync(caps[1]);
     if (!stat || !stat.isFile()) {
-        console.error(caps[1], "doesn't seem to be a file");
+        console.error(caps[1], 'doesn\'t seem to be a file');
         finish(8);
     }
     lastFile = path.resolve(caps[1]);
@@ -146,7 +145,7 @@ function sendNext() {
         lastMessage = obj;
         socket.send(JSON.stringify(obj));
         if (verbose)
-            console.log("Sending message", obj);
+            console.log('Sending message', obj);
     }
     if (!commands.length) {
         readyForCommand = true;
@@ -200,15 +199,15 @@ var fileCache = {};
 socket.on('message', function(data) {
     var response = safe.JSON.parse(data);
     if (!response) {
-        console.error("Invalid response", data);
+        console.error('Invalid response', data);
         finish(5);
     }
     if (verbose && typeof response.error !== undefined)
         response.errorString = rjs.errorCodeToString(response.error);
     if (verbose)
-        console.log("Got response", response);
+        console.log('Got response', response);
     function printLocation(loc, header) {
-        var out = (header || "") + loc.file + ',' + loc.offset;
+        var out = (header || '') + loc.file + ',' + loc.offset;
         if (showContext) {
             var contents = fileCache[lastFile];
             if (!contents) {
@@ -237,12 +236,12 @@ socket.on('message', function(data) {
         console.log(response.dump);
     } else if (response.cursorInfo) {
         printLocation(response.cursorInfo.location);
-        console.log("Name:",
+        console.log('Name:',
                     response.cursorInfo.name,
-                    response.cursorInfo.definition ? "Definition" : "Reference");
+                    response.cursorInfo.definition ? 'Definition' : 'Reference');
         if (response.cursorInfo.references && response.cursorInfo.references.length) {
-            console.log("References:");
-            response.cursorInfo.references.forEach(function(loc) { printLocation(loc, "  "); });
+            console.log('References:');
+            response.cursorInfo.references.forEach(function(loc) { printLocation(loc, '  '); });
         }
         // console.log(response.cursorInfo);
     } else if (response.symbolNames) {
@@ -254,7 +253,7 @@ socket.on('message', function(data) {
 
 if (daemon) {
     process.stdin.setEncoding('utf8');
-    var pendingStdIn = "";
+    var pendingStdIn = '';
     process.stdin.on('readable', function() {
         var read = process.stdin.read();
         if (read) {
@@ -264,7 +263,7 @@ if (daemon) {
                 for (var i=0; i<lines.length - 1; ++i) {
                     addCommands(lines[i].split(' '));
                 }
-                pendingStdIn = lines[lines.length - 1] || "";
+                pendingStdIn = lines[lines.length - 1] || '';
                 if (readyForCommand)
                     sendNext();
             }
