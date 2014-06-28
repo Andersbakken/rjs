@@ -17,18 +17,21 @@ var server = new ws.Server({ port:args.port });
 server.on('connection', function(conn) {
     if (verbose)
         console.log("Got a connection");
+    conn.on('close', function(message) { conn = undefined; });
     conn.on('message', function(message) {
         var msgType;
         function send(obj) {
-            if (!obj.error)
-                obj.error = rjs.ERROR_OK;
-            if (typeof msgType !== 'undefined')
-                obj.type = msgType;
-            if (!conn)
-                console.error("connection is gone");
-            conn.send(JSON.stringify(obj));
-            if (verbose)
-                console.log("sending", obj);
+            if (conn) {
+                if (!obj.error)
+                    obj.error = rjs.ERROR_OK;
+                if (typeof msgType !== 'undefined')
+                    obj.type = msgType;
+                if (!conn)
+                    console.error("connection is gone");
+                conn.send(JSON.stringify(obj));
+                if (verbose)
+                    console.log("sending", obj);
+            }
         }
 
         var msg = safe.JSON.parse(message);
