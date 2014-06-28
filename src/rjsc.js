@@ -39,7 +39,8 @@ var parseArgsOptions = {
     },
     default: {
         p: rjs.defaultPort
-    }
+    },
+    boolean: [ "dump", "no-context", "verbose", "daemon" ]
 };
 
 function exit(code, message, showUsage)
@@ -53,6 +54,7 @@ function exit(code, message, showUsage)
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
 (function() {
+    console.log(args);
     if (args['_'].length)
         exit(1, "Invalid arguments", true);
     var validArgs = {};
