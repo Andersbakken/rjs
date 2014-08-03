@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+
 /*global require, process*/
+
 var safe = require('safetydance');
 var fs = require('fs');
 var ws = require('ws');
@@ -14,23 +16,22 @@ var verbose = args.verbose;
 var db = {};
 var server = new ws.Server({ port:args.port });
 
-function processMessage(message, sendFunc) {
+function processMessage(msg, sendFunc) {
     var msgType;
     function send(obj) {
         if (!obj.error)
             obj.error = rjs.ERROR_OK;
         if (typeof msgType !== 'undefined')
             obj.type = msgType;
-        sendFunc(JSON.stringify(obj));
+        sendFunc(obj);
         if (verbose)
             console.log("sending", obj);
     }
 
-    var msg = safe.JSON.parse(message);
     if (verbose) {
         console.log("got message", msg);
-    } else {
-        console.log("got message", rjs.messageTypeToString(msg.type));
+    } else if (msg instanceof Object) {
+        console.log("got message", msg.type);
     }
     if (!msg) {
         send({error: rjs.ERROR_PROTOCOL_ERROR});
@@ -139,14 +140,16 @@ function processMessage(message, sendFunc) {
                     result = sym;
             }
             var references = result.symbol.references;
-            for (var idx=0; idx<result.symbol.references.length - 1; ++idx) { // if the current is the last in the array there's no reason to resort
-                if (result.symbol.references[idx][0] === startLoc) {
-                    references = result.symbol.references.slice(idx + 1).concat(result.symbol.references.slice(0, idx + 1));
-                    break;
-                }
-            }
             var refs = [];
-            references.forEach(function(value) { refs.push(createLocation(value)); });
+            if (references) {
+                for (var idx=0; idx<result.symbol.references.length - 1; ++idx) { // if the current is the last in the array there's no reason to resort
+                    if (result.symbol.references[idx][0] === startLoc) {
+                        references = result.symbol.references.slice(idx + 1).concat(result.symbol.references.slice(0, idx + 1));
+                        break;
+                    }
+                }
+                references.forEach(function(value) { refs.push(createLocation(value)); });
+            }
 
             send({ references: refs });
         }
@@ -237,14 +240,30 @@ server.on('connection', function(conn) {
         conn = undefined;
     });
     conn.on('message', function(message) {
-        processMessage(message, function(data) {
+        processMessage(safe.JSON.parse(message), function(data) {
             if (conn)
-                conn.send(data);
+                conn.send(JSON.stringify(data));
         });
     });
 });
 
-var pendingStdIn = "";
+var parseArgsOptions = {
+    alias: {
+        c: 'compile',
+        f: 'follow-symbol',
+        r: 'find-references',
+        U: 'dump-file',
+        d: 'dump',
+        u: 'cursor-info',
+        N: 'no-context',
+        F: 'find-symbols',
+        S: 'list-symbols',
+        P: 'file'
+    },
+    boolean: [ 'dump', 'no-context', 'verbose' ]
+};
+
+var pendingStdIn = '';
 process.stdin.on('readable', function() {
     var read = process.stdin.read();
     if (!read)
@@ -253,8 +272,27 @@ process.stdin.on('readable', function() {
     var lines = pendingStdIn.split('\n');
     if (lines.length > 1) {
         for (var i=0; i<lines.length - 1; ++i) {
-            processMessage(lines[i], function(data) {
-                console.log(data);
+            var commands;
+            if (lines[i][0] === '-') {
+                var parsed = parseArgs(lines[i].split(/ +/), parseArgsOptions);
+                if (parsed) {
+                    console.log("GOT ARGS", parsed);
+                }
+                commands = rjs.createCommands(parsed);
+            } else {
+                commands = [safe.JSON.parse(lines[i])];
+            }
+
+            commands.forEach(function(msg) {
+                processMessage(msg, function(data) {
+                    var fileCache = {};
+                    switch (data.type) {
+                    case rjs.MESSAGE_FOLLOW_SYMBOL:
+                        if (data.target)
+                            rjs.printLocation({location:data.target});
+                        break;
+                    }
+                });
             });
         }
         pendingStdIn = lines[lines.length - 1] || '';

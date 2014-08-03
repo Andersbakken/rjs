@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+/*global process, require, __filename */
+
 var fs = require('fs');
 var rjs = require('rjs');
 var ws = require('ws');
@@ -76,42 +78,10 @@ var daemon = args.daemon;
 var socket;
 var readyForCommand = false;
 var server = 'ws://localhost:' + args.port + '/';
-var lastFile;
 var lastMessage;
 
-var commands = [];
-function addCommands(argv)
-{
-    var parsed = argv ? parseArgs(argv, parseArgsOptions) : args;
-    var file = parsed['file'];
-    function add(arg) {
-        function createCommand(val) {
-            var cmd = { type: arg, value: val };
-            if (file)
-                cmd.file = file;
-            commands.push(cmd);
-        }
-        var val = parsed[arg];
-        if (val) {
-            if (val instanceof Array) {
-                val.forEach(createCommand);
-            } else {
-                createCommand(val);
-            }
-        }
-    }
 
-    add('compile');
-    add('follow-symbol');
-    add('find-references');
-    add('dump-file');
-    add('cursor-info');
-    add('dump');
-    add('find-symbols');
-    add('list-symbols');
-}
-
-addCommands(undefined);
+var commands = rjs.createCommands(args);
 
 if (!commands.length && !daemon) {
     console.error(usageString.replace('$0', __filename));
@@ -121,23 +91,6 @@ if (!commands.length && !daemon) {
 function finish(code) {
     if (!daemon)
         process.exit(code);
-}
-
-function createLocation(fileAndOffset) {
-    var caps = /(.*),([0-9]+)?/.exec(fileAndOffset);
-    // var caps = /(.*):([0-9]+):([0-9]+):?/.exec(fileAndLine);
-    if (!caps) {
-        console.error('Can\'t parse location', fileAndOffset);
-        finish(7);
-    }
-    var stat = safe.fs.statSync(caps[1]);
-    if (!stat || !stat.isFile()) {
-        console.error(caps[1], 'doesn\'t seem to be a file');
-        finish(8);
-    }
-    lastFile = path.resolve(caps[1]);
-    // return { file: caps[1], line: caps[2], column: caps[3] };
-    return { file: lastFile, offset: caps[2] };
 }
 
 function sendNext() {
@@ -168,10 +121,10 @@ function sendNext() {
         send({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c.value) });
         break;
     case 'follow-symbol':
-        send({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: createLocation(c.value) });
+        send({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: rjs.createLocation(c.value) });
         break;
     case 'find-references':
-        send({ type: rjs.MESSAGE_FIND_REFERENCES, location: createLocation(c.value) });
+        send({ type: rjs.MESSAGE_FIND_REFERENCES, location: rjs.createLocation(c.value) });
         break;
     case 'dump':
         send({ type: rjs.MESSAGE_DUMP });
@@ -180,7 +133,7 @@ function sendNext() {
         send({ type: rjs.MESSAGE_DUMP, file: path.resolve(c.value) });
         break;
     case 'cursor-info':
-        send({ type: rjs.MESSAGE_CURSOR_INFO, location: createLocation(c.value) });
+        send({ type: rjs.MESSAGE_CURSOR_INFO, location: rjs.createLocation(c.value) });
         break;
     case 'list-symbols':
         send({ type: rjs.MESSAGE_LIST_SYMBOLS, file: c.file, prefix: typeof c.value === 'string' ? c.value : undefined });
@@ -197,42 +150,27 @@ socket.on('close', function(err) { console.error("Lost connection to server:", e
 socket.on('open', sendNext);
 
 var fileCache = {};
+function printLocation(location, header) {
+    console.log(rjs.printLocation({ location: location,
+                                    header: header,
+                                    showContext: showContext,
+                                    fileCache: fileCache }));
+}
+
 socket.on('message', function(data) {
     var response = safe.JSON.parse(data);
     if (!response) {
         console.error('Invalid response', data);
         finish(5);
     }
-    if (verbose && typeof response.error !== undefined)
-        response.errorString = rjs.errorCodeToString(response.error);
     if (verbose)
         console.log('Got response', response);
-    function printLocation(loc, header) {
-        var out = (header || '') + loc.file + ',' + loc.offset;
-        if (showContext) {
-            var contents = fileCache[lastFile];
-            if (!contents) {
-                contents = safe.fs.readFileSync(lastFile, { encoding: 'utf8' });
-                if (contents) {
-                    fileCache[lastFile] = contents;
-                }
-            }
-            if (contents && contents.length > loc.offset) {
-                var prevNewLine = contents.lastIndexOf('\n', loc.offset) + 1;
-                var nextNewLine = contents.indexOf('\n', loc.offset);
-                if (nextNewLine == -1)
-                    nextNewLine = contents.length;
-                out += '\t' + contents.substring(prevNewLine, nextNewLine - 1);
-            }
-        }
-        console.log(out);
-    }
     if (response.target) {
         printLocation(response.target);
     } else if (response.references) {
-        response.references.forEach(printLocation);
+        response.references.forEach(function(loc) { printLocation(loc); });
     } else if (response.locations) {
-        response.locations.forEach(printLocation);
+        response.locations.forEach(function(loc) { printLocation(loc); });
     } else if (response.dump) {
         console.log(response.dump);
     } else if (response.cursorInfo) {
@@ -250,7 +188,10 @@ socket.on('message', function(data) {
     }
     if (response.error != rjs.ERROR_MORE_DATA) {
         if (daemon)
-            console.log('@END@' + rjs.messageTypeToString(response.type) + '@');
+            console.log('@END@' + response.type + '@');
+        if (response.error != rjs.ERROR_OK) {
+            console.error("Error:", response.error);
+        }
         sendNext();
     }
 });
@@ -265,7 +206,7 @@ if (daemon) {
             var lines = pendingStdIn.split('\n');
             if (lines.length > 1) {
                 for (var i=0; i<lines.length - 1; ++i) {
-                    addCommands(lines[i].split(' '));
+                    commands = commands.concat(rjs.createCommands(lines[i].split(' ')));
                 }
                 pendingStdIn = lines[lines.length - 1] || '';
                 if (readyForCommand)
