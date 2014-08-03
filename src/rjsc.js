@@ -95,10 +95,6 @@ function finish(code) {
 
 function sendNext() {
     function send(obj) {
-        lastMessage = obj;
-        socket.send(JSON.stringify(obj));
-        if (verbose)
-            console.log('Sending message', obj);
     }
     if (!commands.length) {
         readyForCommand = true;
@@ -107,41 +103,10 @@ function sendNext() {
     }
 
     readyForCommand = false;
-    var c = commands.splice(0, 1)[0];
-    var location;
-    switch (c.type) {
-    case 'compile':
-        var stat = safe.fs.statSync(c.value);
-        if (!stat || !stat.isFile()) {
-            console.error(c.value, 'does not seem to be a file');
-            finish(4);
-            return;
-        }
-
-        send({ type: rjs.MESSAGE_COMPILE, file: path.resolve(c.value) });
-        break;
-    case 'follow-symbol':
-        send({ type: rjs.MESSAGE_FOLLOW_SYMBOL, location: rjs.createLocation(c.value) });
-        break;
-    case 'find-references':
-        send({ type: rjs.MESSAGE_FIND_REFERENCES, location: rjs.createLocation(c.value) });
-        break;
-    case 'dump':
-        send({ type: rjs.MESSAGE_DUMP });
-        break;
-    case 'dump-file':
-        send({ type: rjs.MESSAGE_DUMP, file: path.resolve(c.value) });
-        break;
-    case 'cursor-info':
-        send({ type: rjs.MESSAGE_CURSOR_INFO, location: rjs.createLocation(c.value) });
-        break;
-    case 'list-symbols':
-        send({ type: rjs.MESSAGE_LIST_SYMBOLS, file: c.file, prefix: typeof c.value === 'string' ? c.value : undefined });
-        break;
-    case 'find-symbols':
-        send({ type: rjs.MESSAGE_FIND_SYMBOLS, file: c.file, symbolName: c.value });
-        break;
-    }
+    lastMessage = commands.splice(0, 1)[0];
+    socket.send(JSON.stringify(lastMessage));
+    if (verbose)
+        console.log('Sending message', lastMessage);
 }
 
 socket = new ws(server);

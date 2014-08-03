@@ -58,6 +58,7 @@ function processMessage(msg, sendFunc) {
             }
         }
         function index(output) {
+            console.log("index", fileName);
             var start = new Date();
             var source = safe.fs.readFileSync(fileName, { encoding:'utf8' });
             var indexTime = new Date();
@@ -275,22 +276,53 @@ process.stdin.on('readable', function() {
             var commands;
             if (lines[i][0] === '-') {
                 var parsed = parseArgs(lines[i].split(/ +/), parseArgsOptions);
-                if (parsed) {
-                    console.log("GOT ARGS", parsed);
-                }
                 commands = rjs.createCommands(parsed);
             } else {
                 commands = [safe.JSON.parse(lines[i])];
             }
 
             commands.forEach(function(msg) {
-                processMessage(msg, function(data) {
-                    var fileCache = {};
-                    switch (data.type) {
-                    case rjs.MESSAGE_FOLLOW_SYMBOL:
-                        if (data.target)
-                            rjs.printLocation({location:data.target});
-                        break;
+                processMessage(msg, function(response) {
+                    function write(func) {
+                        console.log("<results><![CDATA[");
+                        if (func instanceof Function) {
+                            func();
+                        } else {
+                            console.log(func);
+                        }
+                        console.log("]]></results>");
+                    }
+                    if (response.target) {
+                        write(rjs.printLocation({location:response.target}));
+                    } else if (response.references || response.locations) {
+                        write(function() {
+                            var locs = response.references || response.locations;
+                            var fileCache = {};
+                            locs.forEach(function(loc) {
+                                console.log(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
+                            });
+                        });
+                    } else if (response.dump) {
+                        write(response.dump);
+                    } else if (response.cursorInfo) {
+                        write(function() {
+                            console.log(rjs.printLocation({location: response.cursorInfo.location}));
+                            console.log('Name:',
+                                        response.cursorInfo.name,
+                                        response.cursorInfo.definition ? 'Definition' : 'Reference');
+                            if (response.cursorInfo.references && response.cursorInfo.references.length) {
+                                console.log('References:');
+                                response.cursorInfo.references.forEach(function(loc) {
+                                    console.log(rjs.printLocation({location: loc, header: '  ', fileCache: fileCache, showContext: true }));
+                                });
+                            }
+                        });
+                    } else if (response.symbolNames) {
+                        write(function() {
+                            response.symbolNames.forEach(function(name) { console.log(name); });
+                        });
+                    } else if (response.type != rjs.MESSAGE_COMPILE) {
+                        console.error("Unknown response", response);
                     }
                 });
             });
