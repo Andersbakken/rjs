@@ -56,16 +56,18 @@ function processMessage(message, sendFunc) {
                 return;
             }
         }
-        var index = function() {
+        function index(output) {
             var start = new Date();
             var source = safe.fs.readFileSync(fileName, { encoding:'utf8' });
             var indexTime = new Date();
             if (!source) {
                 console.error("Couldn't open", fileName, "for reading");
-                send({error: rjs.ERROR_READFAILURE});
+                if (output)
+                    send({error: rjs.ERROR_READFAILURE});
                 return false;
             }
-            send({});
+            if (output)
+                send({});
 
             var ret = indexer.indexFile(source, fileName, verbose);
             if (!ret) {
@@ -80,7 +82,7 @@ function processMessage(message, sendFunc) {
             db[fileName] = ret;
             return true;
         };
-        if (index()) {
+        if (index(true)) {
             var onFileModified = function() {
                 var cached = db[fileName];
                 if (verbose)
@@ -97,7 +99,7 @@ function processMessage(message, sendFunc) {
                 if (verbose)
                     console.log(fileName, "was modified", stat.mtime, cached.indexTime);
                 if (stat.mtime > cached.indexTime) {
-                    index();
+                    index(false);
                 }
             };
             fs.watch(fileName, onFileModified);
@@ -231,10 +233,30 @@ function processMessage(message, sendFunc) {
 server.on('connection', function(conn) {
     if (verbose)
         console.log("Got a connection");
-    conn.on('close', function(message) { conn = undefined; });
+    conn.on('close', function(message) {
+        conn = undefined;
+    });
     conn.on('message', function(message) {
         processMessage(message, function(data) {
-            conn.send(data);
+            if (conn)
+                conn.send(data);
         });
     });
+});
+
+var pendingStdIn = "";
+process.stdin.on('readable', function() {
+    var read = process.stdin.read();
+    if (!read)
+        return;
+    pendingStdIn += read;
+    var lines = pendingStdIn.split('\n');
+    if (lines.length > 1) {
+        for (var i=0; i<lines.length - 1; ++i) {
+            processMessage(lines[i], function(data) {
+                console.log(data);
+            });
+        }
+        pendingStdIn = lines[lines.length - 1] || '';
+    }
 });
