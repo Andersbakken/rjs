@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+/*global require, process*/
 var safe = require('safetydance');
 var fs = require('fs');
 var ws = require('ws');
