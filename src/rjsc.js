@@ -14,6 +14,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -r|--find-references [location]\n' +
                    '  -U|--dump-file [file]\n' +
                    '  -d|--dump\n' +
+                   '  -h|--help\n' +
                    '  -u|--cursor-info [location]\n' +
                    '  -N|--no-context\n' +
                    '  -v|--verbose\n' +
@@ -30,6 +31,7 @@ var parseArgsOptions = {
         r: 'find-references',
         U: 'dump-file',
         d: 'dump',
+        h: 'help',
         u: 'cursor-info',
         N: 'no-context',
         v: 'verbose',
@@ -47,12 +49,22 @@ var parseArgsOptions = {
 
 function exit(code, message, showUsage)
 {
-    if (showUsage)
-        console.error(usageString.replace('$0', __filename));
+    function log(out) {
+        if (code) {
+            console.error(out);
+        } else {
+            console.log(out);
+        }
+    }
+
+    if (showUsage) {
+        log(usageString.replace('$0', __filename));
+    }
     if (message)
-        console.error(message);
+        log(message);
     process.exit(code);
 }
+
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
 (function() {
@@ -70,6 +82,9 @@ var args = parseArgs(process.argv.slice(2), parseArgsOptions);
     }
     if (args['file'] instanceof Array)
         exit(1, 'Too many --file arguments', true);
+    if (args['help']) {
+        exit(0, '', true);
+    }
 })();
 
 var verbose = args.verbose;

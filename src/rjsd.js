@@ -8,8 +8,57 @@ var ws = require('ws');
 var rjs = require('rjs');
 var indexer = require('indexer');
 var parseArgs = require('minimist');
-var usageString = 'Usage:\n$0 ...options\n  -v|--verbose\n  -p|--port [default ' + rjs.defaultPort + ']\n';
-var args = parseArgs(process.argv.slice(2), { alias: { v: 'verbose', 'p': 'port' }, default: { p: rjs.defaultPort } });
+var usageString = ('Usage:\n$0 ...options\n' +
+                   '-v|--verbose\n' +
+                   '-h|--help\n' +
+                   '-p|--port [default ' + rjs.defaultPort + ']\n');
+var parseArgsOptions = { alias: { v: 'verbose', 'p': 'port', h: 'help' }, default: { p: rjs.defaultPort } };
+var args = parseArgs(process.argv.slice(2), parseArgsOptions);
+
+function exit(code, message, showUsage)
+{
+    function log(out) {
+        if (code) {
+            console.error(out);
+        } else {
+            console.log(out);
+        }
+    }
+
+    if (showUsage) {
+        log(usageString.replace('$0', __filename));
+    }
+    if (message)
+        log(message);
+    process.exit(code);
+}
+
+(function() {
+    if (args['_'].length)
+        exit(1, 'Invalid arguments', true);
+    var validArgs = {};
+    var arg;
+    for (arg in parseArgsOptions.alias) {
+        validArgs[arg] = true;
+        validArgs[parseArgsOptions.alias[arg]] = true;
+    }
+    for (arg in args) {
+        if (arg != '_' && args.hasOwnProperty(arg) && !validArgs[arg])
+            exit(1, 'Unrecognized argument ' + arg, true);
+    }
+    if (args['file'] instanceof Array)
+        exit(1, 'Too many --file arguments', true);
+    if (args['help']) {
+        exit(0, '', true);
+    }
+})();
+
+
+if (args.help) {
+    exit(0, "", true);
+}
+
+
 
 var verbose = args.verbose;
 
@@ -250,6 +299,7 @@ server.on('connection', function(conn) {
 
 var parseArgsOptions = {
     alias: {
+        h: 'help',
         c: 'compile',
         f: 'follow-symbol',
         r: 'find-references',
