@@ -263,24 +263,23 @@
   (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
   (setq arguments (rjs-remove-keyword-params arguments))
 
-  (let ((buf (get-buffer "*RJS*")))
-    (if buf
-        (with-current-buffer buf
-          (erase-buffer)))
+  (let ((buf (get-buffer-create "*RJS*")))
+    (with-current-buffer buf
+      (erase-buffer))
 
-    (if (and rjs-process (eq (process-status rjs-process) 'run))
-        (progn
-          (unless buf
-            (error "*RJS* Buffer is gone"))
-          (rjs-log (concat (rjs-executable-find "rjsd.js") " " (combine-and-quote-strings arguments)))
-          (process-send-string rjs-process (combine-and-quote-strings arguments)))
+    (unless (and rjs-process (eq (process-status rjs-process) 'run))
       (let ((client (rjs-executable-find "rjsd.js")) proc)
         (if (not client)
             (if (not noerror)
                 (error "Can't find rjsd.js"))
           (rjs-log (concat client " " (combine-and-quote-strings arguments)))
-          (setq rjs-process (apply #'start-process "*RJS*" (get-buffer-create "*RJS*") client arguments))
-          (set-process-filter rjs-process (function rjs-client-filter)))))))
+          (setq rjs-process (start-process "*RJS*" buf client))
+          (set-process-filter rjs-process (function rjs-client-filter)))))
+    (unless buf
+      (error "*RJS* Buffer is gone"))
+    (rjs-log (concat (rjs-executable-find "rjsd.js") " " (combine-and-quote-strings arguments)))
+    (process-send-string rjs-process (combine-and-quote-strings arguments))))
+
 
 (defun* rjs-goto-location (&key location no-location-stack other-window)
   (when (and (> (length location) 0)

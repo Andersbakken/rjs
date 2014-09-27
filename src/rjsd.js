@@ -11,8 +11,9 @@ var parseArgs = require('minimist');
 var usageString = ('Usage:\n$0 ...options\n' +
                    '-v|--verbose\n' +
                    '-h|--help\n' +
+                   '-l|--logfile\n' +
                    '-p|--port [default ' + rjs.defaultPort + ']\n');
-var parseArgsOptions = { alias: { v: 'verbose', 'p': 'port', h: 'help' }, default: { p: rjs.defaultPort } };
+var parseArgsOptions = { alias: { l: 'logfile', v: 'verbose', 'p': 'port', h: 'help' }, default: { p: rjs.defaultPort } };
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
 function exit(code, message, showUsage)
@@ -58,8 +59,14 @@ if (args.help) {
     exit(0, "", true);
 }
 
+function log() {
+    if (args.verbose)
+        console.log.apply(console, arguments);
 
-
+    // if (args.logfile) {
+    //     fs.appendToFile(
+    // }
+}
 var verbose = args.verbose;
 
 var db = {};
@@ -79,7 +86,7 @@ function processMessage(msg, sendFunc) {
 
     if (verbose) {
         console.log("got message", msg);
-    } else if (msg instanceof Object) {
+    } else if (verbose && msg instanceof Object) {
         console.log("got message", msg.type);
     }
     if (!msg) {
@@ -333,6 +340,8 @@ process.stdin.on('readable', function() {
 
             commands.forEach(function(msg) {
                 processMessage(msg, function(response) {
+                    if (verbose)
+                        console.log("processing message", msg);
                     function write(func) {
                         console.log("<results><![CDATA[");
                         if (func instanceof Function) {
