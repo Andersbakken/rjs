@@ -17,8 +17,8 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '  -h|--help\n' +
                    '  -u|--cursor-info [location]\n' +
                    '  -N|--no-context\n' +
+                   '  -g|--log\n' +
                    '  -v|--verbose\n' +
-                   '  -D|--daemon\n' +
                    '  -F|--find-symbols [symbolName]\n' +
                    '  -S|--list-symbols [optional prefix]\n' +
                    '  -P|--file [file]\n' +
@@ -35,8 +35,8 @@ var parseArgsOptions = {
         u: 'cursor-info',
         N: 'no-context',
         v: 'verbose',
-        D: 'daemon',
         p: 'port',
+        g: 'log',
         F: 'find-symbols',
         S: 'list-symbols',
         P: 'file'
@@ -44,7 +44,7 @@ var parseArgsOptions = {
     default: {
         p: rjs.defaultPort
     },
-    boolean: [ 'dump', 'no-context', 'verbose', 'daemon' ]
+    boolean: [ 'dump', 'no-context', 'verbose', 'log' ]
 };
 
 function exit(code, message, showUsage)
@@ -89,7 +89,6 @@ var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
 var verbose = args.verbose;
 var showContext = !args['no-context'];
-var daemon = args.daemon;
 var socket;
 var readyForCommand = false;
 var server = 'ws://localhost:' + args.port + '/';
@@ -98,19 +97,16 @@ var lastMessage;
 
 var commands = rjs.createCommands(args);
 
-if (!commands.length && !daemon) {
+if (!commands.length) {
     console.error(usageString.replace('$0', __filename));
     process.exit(1);
 }
 
 function finish(code) {
-    if (!daemon)
-        process.exit(code);
+    process.exit(code);
 }
 
 function sendNext() {
-    function send(obj) {
-    }
     if (!commands.length) {
         readyForCommand = true;
         finish(0);
@@ -165,37 +161,13 @@ socket.on('message', function(data) {
         // console.log(response.cursorInfo);
     } else if (response.symbolNames) {
         response.symbolNames.forEach(function(name) { console.log(name); });
+    } else if (response.log) {
+        console.log(response.log);
     }
     if (response.error != rjs.ERROR_MORE_DATA) {
-        if (daemon)
-            console.log('@END@' + response.type + '@');
         if (response.error != rjs.ERROR_OK) {
             console.error("Error:", response.error);
         }
         sendNext();
     }
 });
-
-if (daemon) {
-    process.stdin.setEncoding('utf8');
-    var pendingStdIn = '';
-    process.stdin.on('readable', function() {
-        var read = process.stdin.read();
-        if (read) {
-            pendingStdIn += read;
-            var lines = pendingStdIn.split('\n');
-            if (lines.length > 1) {
-                for (var i=0; i<lines.length - 1; ++i) {
-                    commands = commands.concat(rjs.createCommands(lines[i].split(' ')));
-                }
-                pendingStdIn = lines[lines.length - 1] || '';
-                if (readyForCommand)
-                    sendNext();
-            }
-        }
-    });
-
-}
-
-
-
