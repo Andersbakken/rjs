@@ -352,11 +352,22 @@ function processMessage(msg, chunked, sendFunc) {
             }
             send({ dump: JSON.stringify(db[msg.file], null, 4) });
         } else {
+            var dump = "";
             for (var ff in db) {
                 var entry = db[ff];
-                send({ error: rjs.ERROR_MORE_DATA, dump: ff + " " + entry.indexTime });
+                if (chunked) {
+                    send({ error: rjs.ERROR_MORE_DATA, dump: ff + " " + entry.indexTime });
+                } else {
+                    if (dump)
+                        dump += '\n';
+                    dump += ff + " " + entry.indexTime;
+                }
             }
-            send({dump: ""});
+            if (dump) {
+                send({ dump: dump });
+            } else {
+                send({});
+            }
         }
         break;
     }
@@ -425,58 +436,32 @@ process.stdin.on('readable', function() {
             verboseLog(commands);
 
             commands.forEach(function(msg) {
-                var pendingResponses = [];
                 processMessage(msg, false, function(response) {
-                    if (response.error == rjs.ERROR_MORE_DATA) {
-                        if (pendingResponses.length && pendingResponses[0].type != response.type) {
-                            console.error("Invalid messages 1", pendingResponses, response);
-                        } else {
-                            pendingResponses.push(response);
-                        }
-                        return;
-                    }
-                    console.error("GOT RESPONSE", response);
                     verboseLog("processing message", msg);
-                    function write(func) {
+                    function write(funcOrString) {
+                        if (!funcOrString)
+                            return;
                         writeResponse("<results><![CDATA[");
-                        if (func instanceof Function) {
-                            func();
+                        if (funcOrString instanceof Function) {
+                            funcOrString();
                         } else {
-                            writeResponse(func);
+                            writeResponse(funcOrString);
                         }
                         writeResponse("]]></results>");
                     }
                     if (response.target) {
-                        if (pendingResponses.length) {
-                            console.error("Invalid messages 2", pendingResponses, response);
-                            return;
-                        }
                         write(rjs.printLocation({location:response.target}));
                     } else if (response.references || response.locations) {
-                        pendingResponses.push(response);
                         write(function() {
                             var fileCache = {};
-                            pendingResponses.forEach(function(r) {
-                                var locs = r.references || r.locations;
-                                locs.forEach(function(loc) {
-                                    writeResponse(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
-                                });
+                            var locs = r.references || r.locations;
+                            locs.forEach(function(loc) {
+                                writeResponse(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
                             });
                         });
                     } else if (response.hasOwnProperty("dump")) {
-                        pendingResponses.push(response);
-                        write(function() {
-                            pendingResponses.forEach(function(d) {
-                                if (d.dump)
-                                    writeResponse(d.dump);
-                            });
-                        });
+                        write(response.dump);
                     } else if (response.cursorInfo) {
-                        if (pendingResponses.length) {
-                            console.error("Invalid messages 2", pendingResponses, response);
-                            return;
-                        }
-
                         write(function() {
                             writeResponse(rjs.printLocation({location: response.cursorInfo.location}));
                             writeResponse('Name:',
@@ -492,15 +477,14 @@ process.stdin.on('readable', function() {
                             }
                         });
                     } else if (response.symbolNames) {
-                        if (pendingResponses.length) { // can these have more than one message?
-                            console.error("Invalid messages 2", pendingResponses, response);
-                            return;
-                        }
-
                         write(function() {
                             response.symbolNames.forEach(function(name) { writeResponse(name); });
                         });
-                    } else if (response.type != rjs.MESSAGE_COMPILE) {
+                    } else if (response.type == rjs.MESSAGE_COMPILE) {
+                        verboseLog("Got compile", response);
+                    } else if (response.error != rjs.ERROR_OK) {
+                        verboseLog("Got error", response);
+                    } else {
                         console.error("Unknown response", response);
                     }
                 });
