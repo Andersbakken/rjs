@@ -12,25 +12,53 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-v|--verbose\n' +
                    '-h|--help\n' +
                    '-l|--logfile\n' +
+                   '-s|--silent\n' +
                    '-p|--port [default ' + rjs.defaultPort + ']\n');
-var parseArgsOptions = { alias: { l: 'logfile', v: 'verbose', 'p': 'port', h: 'help' }, default: { p: rjs.defaultPort } };
+var parseArgsOptions = {
+    alias: {
+        l: 'logfile',
+        v: 'verbose',
+        p: 'port',
+        h: 'help',
+        s: 'silent'
+    },
+    default: {
+        p: rjs.defaultPort
+    }
+};
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
-var outputs = [
-    {
+var outputs = [];
+if (!args.silent) {
+    var out = {
         log: function(str) { console.error(str); },
-        verbose: args.verbose
-    }
-];
+        verbosity: args.silent ? 0 : args.verbose ? 2 : 1
+    };
+    outputs.append(out);
+}
+
+if (args.logfile) {
+    var output = {
+        log: function(str) {
+            if (str[str.length - 1] != '\n')
+                str += '\n';
+            fs.appendFile(args.logfile, str, function (err) {});
+        },
+        verbosity: 2
+    };
+    outputs.push(output);
+}
 
 function addLog(conn, verbose) {
-    outputs.push({
+    var output = {
         log: function(str) {
             conn.send(JSON.stringify({type: rjs.MESSAGE_LOG, log: str, error: rjs.ERROR_MORE_DATA }));
         },
-        connection: conn,
-        verbose: verbose
-    });
+        verbosity: verbose ? 2 : 1,
+        connection: conn
+    };
+
+    outputs.push(output);
 }
 
 function removeLog(conn) {
@@ -42,10 +70,12 @@ function removeLog(conn) {
     }
 }
 
-function sendToOutput(verbose, str)
+function sendToOutput(verbosity, str)
 {
+    if (!str)
+        return;
     for (var i=0; i<outputs.length; ++i) {
-        if (!verbose || outputs[i].verbose) {
+        if (outputs[i].verbosity >= verbosity) {
             outputs[i].log(str);
         }
     }
@@ -74,8 +104,9 @@ function formatLog(args) {
     return out;
 }
 
-function log() { sendToOutput(false, formatLog(arguments)); }
-function verboseLog() { sendToOutput(true, formatLog(arguments)); }
+function writeResponse() { sendToOutput(0, formatLog(arguments)); }
+function log() { sendToOutput(1, formatLog(arguments)); }
+function verboseLog() { sendToOutput(2, formatLog(arguments)); }
 
 function exit(code, message, showUsage)
 {
@@ -375,6 +406,7 @@ var parseArgsOptionsClient = {
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
     var read = process.stdin.read();
+    verboseLog("Got shit", read);
     if (!read)
         return;
     pendingStdIn += read;
@@ -388,18 +420,19 @@ process.stdin.on('readable', function() {
             } else {
                 commands = [safe.JSON.parse(lines[i])];
             }
+            verboseLog(commands);
 
             commands.forEach(function(msg) {
                 processMessage(msg, function(response) {
                     verboseLog("processing message", msg);
                     function write(func) {
-                        log("<results><![CDATA[");
+                        writeResponse("<results><![CDATA[");
                         if (func instanceof Function) {
                             func();
                         } else {
-                            console.log(func);
+                            writeResponse(func);
                         }
-                        log("]]></results>");
+                        writeResponse("]]></results>");
                     }
                     if (response.target) {
                         write(rjs.printLocation({location:response.target}));
@@ -408,28 +441,29 @@ process.stdin.on('readable', function() {
                             var locs = response.references || response.locations;
                             var fileCache = {};
                             locs.forEach(function(loc) {
-                                log(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
+                                write(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
                             });
                         });
                     } else if (response.dump) {
                         write(response.dump);
                     } else if (response.cursorInfo) {
                         write(function() {
-                            log(rjs.printLocation({location: response.cursorInfo.location}));
-                            log('Name:',
-                                response.cursorInfo.name,
-                                response.cursorInfo.definition ? 'Definition' : 'Reference');
+                            writeResponse(rjs.printLocation({location: response.cursorInfo.location}));
+                            writeResponse('Name:',
+                                          response.cursorInfo.name,
+                                          response.cursorInfo.definition ? 'Definition' : 'Reference');
                             if (response.cursorInfo.references && response.cursorInfo.references.length) {
                                 var fileCache = {};
-                                log('References:');
+                                writeResponse('References:');
                                 response.cursorInfo.references.forEach(function(loc) {
-                                    log(rjs.printLocation({location: loc, header: '  ', fileCache: fileCache, showContext: true }));
+                                    writeResponse(rjs.printLocation({location: loc, header: '  ',
+                                                                     fileCache: fileCache, showContext: true }));
                                 });
                             }
                         });
                     } else if (response.symbolNames) {
                         write(function() {
-                            response.symbolNames.forEach(function(name) { log(name); });
+                            response.symbolNames.forEach(function(name) { writeResponse(name); });
                         });
                     } else if (response.type != rjs.MESSAGE_COMPILE) {
                         console.error("Unknown response", response);

@@ -48,7 +48,7 @@
 (defface rjs-context nil "Context" :group 'rjs)
 (defvar rjs-path-face 'rjs-path "Path part")
 (defvar rjs-context-face 'rjs-context "Context part")
-(defconst rjs-buffer-name "*RJS*")
+(defconst rjs-buffer-name "*RJS Process Buffer*")
 (defvar rjs-buffer-bookmarks 0)
 
 (defcustom rjs-enabled t
@@ -75,6 +75,11 @@
   "If t, log rjs commands and responses"
   :group 'rjs
   :type 'boolean)
+
+(defcustom rjs-log-file nil
+  "Set to file name to log to"
+  :group 'rjs
+  :type 'string)
 
 (defface rjs-warnline
   '((((class color) (background dark)) (:background "blue"))
@@ -107,6 +112,12 @@
   (if (> (length (window-list)) 1)
       (delete-window)
     (bury-buffer)))
+
+(defun rjs-buffer ()
+  (interactive)
+  (let ((buf (get-buffer rjs-buffer-name)))
+    (if buf
+        (switch-to-buffer buf))))
 
 (defvar rjs-mode-map nil)
 ;; assign command to keys
@@ -213,7 +224,7 @@
 
 (defun rjs-clear-client-buffer ()
   (interactive)
-  (let ((buf (get-buffer "*RJS*")))
+  (let ((buf (get-buffer rjs-buffer-name)))
     (if buf
         (with-current-buffer buf
           (erase-buffer)))))
@@ -236,7 +247,7 @@
 (defun rjs-handle-list-symbols (text)
   (message "rjs-handle-list-symbols: [%s]" text))
 
-(defun rjs-client-filter (process string)
+(defun rjsd-filter (process string)
   (with-current-buffer (process-buffer process)
     (goto-char (point-max))
     (insert string)
@@ -259,25 +270,28 @@
     ;;            (rjs-handle-list-symbols (buffer-substring-no-properties (point-min) (1- idx))))
     ;;           (t (message "Unhandled type %s" type)))))))
 
-(defun* rjs-call-client (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
+(defun* rjs-invoke (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
   (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
   (setq arguments (rjs-remove-keyword-params arguments))
 
-  (let ((buf (get-buffer-create "*RJS*")))
+  (let ((buf (get-buffer-create rjs-buffer-name)))
     (with-current-buffer buf
       (erase-buffer))
 
     (unless (and rjs-process (eq (process-status rjs-process) 'run))
-      (let ((client (rjs-executable-find "rjsd.js")) proc)
-        (if (not client)
+      (let ((exec (rjs-executable-find "rjsd")) proc
+            (args (list "--silent")))
+        (if (not exec)
             (if (not noerror)
-                (error "Can't find rjsd.js"))
-          (rjs-log (concat client " " (combine-and-quote-strings arguments)))
-          (setq rjs-process (start-process "*RJS*" buf client))
-          (set-process-filter rjs-process (function rjs-client-filter)))))
+                (error "Can't find rjsd"))
+          (if (stringp rjs-log-file)
+              (setq args (append args (list "-l" rjs-log-file))))
+          (rjs-log (concat exec " " (combine-and-quote-strings args)))
+          (setq rjs-process (apply #'start-process rjs-buffer-name buf exec args))
+          (set-process-filter rjs-process (function rjsd-filter)))))
     (unless buf
       (error "*RJS* Buffer is gone"))
-    (rjs-log (concat (rjs-executable-find "rjsd.js") " " (combine-and-quote-strings arguments)))
+    (rjs-log (concat (rjs-executable-find "rjsd") " " (combine-and-quote-strings arguments)))
     (process-send-string rjs-process (combine-and-quote-strings arguments))))
 
 
@@ -300,9 +314,9 @@
   (let ((loc (rjs-current-location)))
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
-    (rjs-call-client "-f" loc)))
+    (rjs-invoke "-f" loc)))
     ;; (with-temp-buffer
-    ;;   (when (rjs-call-client "-f" loc)
+    ;;   (when (rjs-invoke "-f" loc)
     ;;     (rjs-location-stack-push loc)
     ;;     (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
 
@@ -311,9 +325,9 @@
   (let ((loc (rjs-current-location)))
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
-    (rjs-call-client "-r" loc)))
+    (rjs-invoke "-r" loc)))
     ;; (with-current-buffer (rjs-get-buffer)
-    ;;   (if (rjs-call-client "-r" loc)
+    ;;   (if (rjs-invoke "-r" loc)
     ;;       (rjs-handle-results-buffer)))))
 
 (defun rjs-cursor-info ()
@@ -321,9 +335,9 @@
   (let ((loc (rjs-current-location)))
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
-    (rjs-call-client "-u" loc)))
+    (rjs-invoke "-u" loc)))
     ;; (with-temp-buffer
-    ;;   (if (rjs-call-client "-u" loc)
+    ;;   (if (rjs-invoke "-u" loc)
     ;;       (message "%s" (buffer-substring-no-properties (point-min) (point-max)))))))
 
 (defvar rjs-is-js-file-function nil)
@@ -336,7 +350,10 @@
       (if (functionp rjs-is-js-file-function)
           (funcall rjs-is-js-file-function file-or-buffer)
         (let ((suffix (file-name-extension file-or-buffer)))
-          (and suffix (string= "js" (downcase suffix)))))))
+          (or (and suffix (string= "js" (downcase suffix)))
+              (eq major-mode 'js2-mode)
+              (eq major-mode 'javascript-mode))))))
+
 
 ;;;###autoload
 (defun rjs-index-buffer (&optional buffer-or-name)
@@ -345,7 +362,7 @@
                        ((bufferp buffer-or-name) (buffer-file-name buffer-or-name))
                        (t buffer-file-name))))
     (if (and bufname (rjs-is-js-file bufname))
-        (rjs-call-client "--compile" bufname :noerror t))))
+        (rjs-invoke "--compile" bufname :noerror t))))
 
 (defun rjs-buffer-is-multibyte ()
   (string-match "\\butf\\b" (symbol-name buffer-file-coding-system)))
