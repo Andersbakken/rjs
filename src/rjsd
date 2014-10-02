@@ -26,7 +26,7 @@ var outputs = [
 function addLog(conn, verbose) {
     outputs.push({
         log: function(str) {
-            conn.send(JSON.stringify({type: rjs.MESSAGE_LOG, log: str, error: RJS.ERROR_MORE_DATA }));
+            conn.send(JSON.stringify({type: rjs.MESSAGE_LOG, log: str, error: rjs.ERROR_MORE_DATA }));
         },
         connection: conn,
         verbose: verbose
@@ -51,13 +51,13 @@ function sendToOutput(verbose, str)
     }
 }
 
-function formatLog() {
+function formatLog(args) {
     var out = "";
     function add(obj) {
         var str;
         if (obj instanceof Object) {
             try {
-                str = JSON.parse(obj);
+                str = JSON.stringify(obj);
             } catch (err) {
             }
         }
@@ -68,14 +68,14 @@ function formatLog() {
             out += ' ';
         out += str;
     }
-    for (var i=0; i<arguments.length; ++i) {
-        add(arguments[i]);
+    for (var i=0; i<args.length; ++i) {
+        add(args[i]);
     }
     return out;
 }
 
-function log() { sendToOutput(false, formatLog()); }
-function verboseLog() { sendToOutput(true, formatLog()); }
+function log() { sendToOutput(false, formatLog(arguments)); }
+function verboseLog() { sendToOutput(true, formatLog(arguments)); }
 
 function exit(code, message, showUsage)
 {
@@ -160,7 +160,7 @@ function processMessage(msg, sendFunc) {
             }
         }
         function index(output) {
-            console.log("index", fileName);
+            log("index", fileName);
             var start = new Date();
             var source = safe.fs.readFileSync(fileName, { encoding:'utf8' });
             var indexTime = new Date();
@@ -178,7 +178,7 @@ function processMessage(msg, sendFunc) {
                 console.error("Couldn't parse file", fileName);
                 return false;
             }
-            console.log("Indexed", fileName, "in", (new Date() - start), "ms", ret.symbols.length, "symbols and", ret.symbolNames.length, "symbol names");
+            log("Indexed", fileName, "in", (new Date() - start), "ms", ret.symbols.length, "symbols and", ret.symbolNames.length, "symbol names");
 
             verboseLog(ret);
             ret.indexTime = indexTime;
@@ -341,6 +341,7 @@ server.on('connection', function(conn) {
     });
     conn.on('message', function(message) {
         var msg = safe.JSON.parse(message);
+        verboseLog("got message", msg);
         if (msg.type == rjs.MESSAGE_LOG) {
             conn.log = true;
             addLog(conn, msg.verbose);
@@ -365,7 +366,8 @@ var parseArgsOptionsClient = {
         N: 'no-context',
         F: 'find-symbols',
         S: 'list-symbols',
-        P: 'file'
+        P: 'file',
+        g: 'log'
     },
     boolean: [ 'dump', 'no-context', 'verbose' ]
 };
@@ -391,13 +393,13 @@ process.stdin.on('readable', function() {
                 processMessage(msg, function(response) {
                     verboseLog("processing message", msg);
                     function write(func) {
-                        console.log("<results><![CDATA[");
+                        log("<results><![CDATA[");
                         if (func instanceof Function) {
                             func();
                         } else {
                             console.log(func);
                         }
-                        console.log("]]></results>");
+                        log("]]></results>");
                     }
                     if (response.target) {
                         write(rjs.printLocation({location:response.target}));
@@ -406,28 +408,28 @@ process.stdin.on('readable', function() {
                             var locs = response.references || response.locations;
                             var fileCache = {};
                             locs.forEach(function(loc) {
-                                console.log(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
+                                log(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
                             });
                         });
                     } else if (response.dump) {
                         write(response.dump);
                     } else if (response.cursorInfo) {
                         write(function() {
-                            console.log(rjs.printLocation({location: response.cursorInfo.location}));
-                            console.log('Name:',
-                                        response.cursorInfo.name,
-                                        response.cursorInfo.definition ? 'Definition' : 'Reference');
+                            log(rjs.printLocation({location: response.cursorInfo.location}));
+                            log('Name:',
+                                response.cursorInfo.name,
+                                response.cursorInfo.definition ? 'Definition' : 'Reference');
                             if (response.cursorInfo.references && response.cursorInfo.references.length) {
                                 var fileCache = {};
-                                console.log('References:');
+                                log('References:');
                                 response.cursorInfo.references.forEach(function(loc) {
-                                    console.log(rjs.printLocation({location: loc, header: '  ', fileCache: fileCache, showContext: true }));
+                                    log(rjs.printLocation({location: loc, header: '  ', fileCache: fileCache, showContext: true }));
                                 });
                             }
                         });
                     } else if (response.symbolNames) {
                         write(function() {
-                            response.symbolNames.forEach(function(name) { console.log(name); });
+                            response.symbolNames.forEach(function(name) { log(name); });
                         });
                     } else if (response.type != rjs.MESSAGE_COMPILE) {
                         console.error("Unknown response", response);
