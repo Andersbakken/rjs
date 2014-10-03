@@ -441,45 +441,44 @@ process.stdin.on('readable', function() {
                     function write(funcOrString) {
                         if (!funcOrString)
                             return;
-                        writeResponse("<results><![CDATA[");
+                        var out;
                         if (funcOrString instanceof Function) {
-                            funcOrString();
+                            out = funcOrString();
                         } else {
-                            writeResponse(funcOrString);
+                            out = funcOrString;
                         }
-                        writeResponse("]]></results>");
+                        writeResponse("<" + msg.type + " length=\"" + out.length + "\">\n" + out + "\n</" + msg.type + ">");
                     }
                     if (response.target) {
                         write(rjs.printLocation({location:response.target}));
                     } else if (response.references || response.locations) {
                         write(function() {
                             var fileCache = {};
-                            var locs = r.references || r.locations;
+                            var locs = response.references || response.locations;
+                            var ret = [];
                             locs.forEach(function(loc) {
-                                writeResponse(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
+                                ret.push = rjs.printLocation({location: loc, showContext: true, fileCache: fileCache });
                             });
+                            return ret.join("\n");
                         });
                     } else if (response.hasOwnProperty("dump")) {
                         write(response.dump);
                     } else if (response.cursorInfo) {
                         write(function() {
-                            writeResponse(rjs.printLocation({location: response.cursorInfo.location}));
-                            writeResponse('Name:',
-                                          response.cursorInfo.name,
-                                          response.cursorInfo.definition ? 'Definition' : 'Reference');
+                            var ret = [ rjs.printLocation({location: response.cursorInfo.location}) ];
+                            ret.push('Name: ' + response.cursorInfo.name + (response.cursorInfo.definition ? ' Definition' : ' Reference'));
                             if (response.cursorInfo.references && response.cursorInfo.references.length) {
                                 var fileCache = {};
-                                writeResponse('References:');
+                                ret.push('References:');
                                 response.cursorInfo.references.forEach(function(loc) {
-                                    writeResponse(rjs.printLocation({location: loc, header: '  ',
-                                                                     fileCache: fileCache, showContext: true }));
+                                    ret.push(rjs.printLocation({location: loc, header: '  ',
+                                                                fileCache: fileCache, showContext: true }));
                                 });
                             }
+                            return ret.join("\n");
                         });
                     } else if (response.symbolNames) {
-                        write(function() {
-                            response.symbolNames.forEach(function(name) { writeResponse(name); });
-                        });
+                        write(response.symbolNames.join("\n"));
                     } else if (response.type == rjs.MESSAGE_COMPILE) {
                         verboseLog("Got compile", response);
                     } else if (response.error != rjs.ERROR_OK) {
