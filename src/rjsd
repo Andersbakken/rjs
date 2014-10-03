@@ -370,6 +370,9 @@ function processMessage(msg, chunked, sendFunc) {
             }
         }
         break;
+    default:
+        send({error: rjs.ERROR_UNKNOWN_COMMAND});
+        break;
     }
 }
 
@@ -449,7 +452,9 @@ process.stdin.on('readable', function() {
                         }
                         writeResponse("<" + msg.type + " length=\"" + out.length + "\">\n" + out + "\n</" + msg.type + ">");
                     }
-                    if (response.target) {
+                    if (response.error == rjs.ERROR_UNKNOWN_COMMAND) {
+                        writeResponse("<error length=\"15\">Unknown command</error>");
+                    } else if (response.target) {
                         write(rjs.printLocation({location:response.target}));
                     } else if (response.references || response.locations) {
                         write(function() {

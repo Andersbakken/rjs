@@ -8,44 +8,6 @@ var ws = require('ws');
 var path = require('path');
 var parseArgs = require('minimist');
 var safe = require('safetydance');
-var usageString = ('Usage:\n$0 ...options\n' +
-                   '  -c|--compile [file]\n' +
-                   '  -f|--follow-symbol [location]\n' +
-                   '  -r|--find-references [location]\n' +
-                   '  -U|--dump-file [file]\n' +
-                   '  -d|--dump\n' +
-                   '  -h|--help\n' +
-                   '  -u|--cursor-info [location]\n' +
-                   '  -N|--no-context\n' +
-                   '  -g|--log\n' +
-                   '  -v|--verbose\n' +
-                   '  -F|--find-symbols [symbolName]\n' +
-                   '  -S|--list-symbols [optional prefix]\n' +
-                   '  -P|--file [file]\n' +
-                   '  -p|--port [port] (default ' + rjs.defaultPort + ')\n');
-
-var parseArgsOptions = {
-    alias: {
-        c: 'compile',
-        f: 'follow-symbol',
-        r: 'find-references',
-        U: 'dump-file',
-        d: 'dump',
-        h: 'help',
-        u: 'cursor-info',
-        N: 'no-context',
-        v: 'verbose',
-        p: 'port',
-        g: 'log',
-        F: 'find-symbols',
-        S: 'list-symbols',
-        P: 'file'
-    },
-    default: {
-        p: rjs.defaultPort
-    },
-    boolean: [ 'dump', 'no-context', 'verbose', 'log' ]
-};
 
 function exit(code, message, showUsage)
 {
@@ -58,23 +20,23 @@ function exit(code, message, showUsage)
     }
 
     if (showUsage) {
-        log(usageString.replace('$0', __filename));
+        log(rjs.clientUsageString.replace('$0', __filename));
     }
     if (message)
         log(message);
     process.exit(code);
 }
 
-var args = parseArgs(process.argv.slice(2), parseArgsOptions);
+var args = parseArgs(process.argv.slice(2), rjs.clientParseArgsOptions);
 
 (function() {
     if (args['_'].length)
         exit(1, 'Invalid arguments', true);
     var validArgs = {};
     var arg;
-    for (arg in parseArgsOptions.alias) {
+    for (arg in rjs.clientParseArgsOptions.alias) {
         validArgs[arg] = true;
-        validArgs[parseArgsOptions.alias[arg]] = true;
+        validArgs[rjs.clientParseArgsOptions.alias[arg]] = true;
     }
     for (arg in args) {
         if (arg != '_' && args.hasOwnProperty(arg) && !validArgs[arg])
@@ -98,7 +60,7 @@ var lastMessage;
 var commands = rjs.createCommands(args);
 
 if (!commands.length) {
-    console.error(usageString.replace('$0', __filename));
+    console.error(rjs.clientUsageString.replace('$0', __filename));
     process.exit(1);
 }
 
