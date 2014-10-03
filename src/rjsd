@@ -370,6 +370,9 @@ function processMessage(msg, chunked, sendFunc) {
             }
         }
         break;
+    case rjs.MESSAGE_ERROR:
+        send({error: rjs.ERROR_BAD_COMMAND, text: msg.error});
+        break;
     default:
         send({error: rjs.ERROR_UNKNOWN_COMMAND});
         break;
@@ -458,7 +461,9 @@ process.stdin.on('readable', function() {
                             out += "\n";
                         writeResponse("<" + msg.type + " length=\"" + out.length + "\">\n" + out + "</" + msg.type + ">");
                     }
-                    if (response.target) {
+                    if (response.type == rjs.MESSAGE_ERROR) {
+                        write(response.text);
+                    } else if (response.target) {
                         write(rjs.printLocation({location:response.target}));
                     } else if (response.references || response.locations) {
                         write(function() {
