@@ -406,23 +406,10 @@ server.on('connection', function(conn) {
     });
 });
 
-var parseArgsOptionsClient = {
-    alias: {
-        h: 'help',
-        c: 'compile',
-        f: 'follow-symbol',
-        r: 'find-references',
-        U: 'dump-file',
-        d: 'dump',
-        u: 'cursor-info',
-        N: 'no-context',
-        F: 'find-symbols',
-        S: 'list-symbols',
-        P: 'file',
-        g: 'log'
-    },
-    boolean: [ 'dump', 'no-context', 'verbose' ]
-};
+function formatXML(tag, str)
+{
+    return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
+}
 
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
@@ -438,13 +425,17 @@ process.stdin.on('readable', function() {
             if (!lines[i])
                 continue;
             if (lines[i][0] === '-') {
-                var parsed = parseArgs(lines[i].split(/ +/), parseArgsOptionsClient);
+                var parsed = parseArgs(lines[i].split(/ +/), rjs.clientParseArgsOptions);
+                if (parsed.help) {
+                    writeResponse(formatXML("help", rjs.clientUsageString));
+                    continue;
+                }
                 commands = rjs.createCommands(parsed);
             } else {
                 commands = [safe.JSON.parse(lines[i])];
             }
             if (!commands.length) {
-                writeResponse("<error length=\"" + (17 + lines[i].length) + "\">Unknown command: " + lines[i] + "</error>");
+                writeResponse(formatXML("error" ,"Unknown command: " + lines[i]));
                 continue;
             }
             verboseLog(commands);
@@ -463,7 +454,7 @@ process.stdin.on('readable', function() {
                         }
                         if (out)
                             out += "\n";
-                        writeResponse("<" + msg.type + " length=\"" + out.length + "\">\n" + out + "</" + msg.type + ">");
+                        writeResponse(formatXML(msg.type, out));
                     }
                     if (response.type == rjs.MESSAGE_ERROR) {
                         write(response.text);
