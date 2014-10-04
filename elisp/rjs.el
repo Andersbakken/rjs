@@ -247,11 +247,49 @@
 (defun rjs-handle-list-symbols (text)
   (message "rjs-handle-list-symbols: [%s]" text))
 
-(defun rjsd-filter (process string)
-  (with-current-buffer (process-buffer process)
-    (goto-char (point-max))
-    (insert string)
-    (message "got string [%s]" string)))
+(defun rjs-trim-whitespace ()
+  "Trim initial whitespace from the *RJS Raw* buffer (so libxml parsing doesn't fail)"
+  (goto-char (point-min))
+  (if (search-forward-regexp "\\`\n+\\|^\\s-+\\|\\s-+$\\|\n+\\'" (point-max) t)
+      (replace-match "" t t)))
+
+(defun rjs-handle-xml (doc)
+  (cond ((eq (caar doc) 'follow-symbol)
+         (rjs-goto-location :location (nth 2 (car doc))))
+         ;; (message "got follow-symbol"))
+        (t (message "nothing"))))
+
+(defconst rjs-xml-regexps
+  (regexp-opt '("</follow-symbol>"
+                ;; "</progress>"
+                ;; "</completions>"
+                )))
+
+(defun rjsd-filter (process output)
+  ;; Collect the xml diagnostics into "*RJS Raw*" until a closing tag is found
+  (with-current-buffer (get-buffer-create "*RJS Raw*")
+      (goto-char (point-max))
+      (let ((matchrx rjs-xml-regexps)
+            endpos)
+        (insert output)
+        ;; only try to process xml diagnostics if we detect an end condition
+        (when (string-match (rx "</") output)
+          (goto-char (point-min))
+          (while (search-forward-regexp matchrx (point-max) t)
+            (setq endpos (match-end 0))
+            ;; narrow to one xml result (incase multiple results come in together)
+            ;; (narrow-to-region (point-min) endpos)
+            ;; trim any whitespace from the beginning of the region
+            ;; otherwise `libxml-parse-xml-region' might fail
+            (rjs-trim-whitespace)
+            (rjs-handle-xml (xml-parse-region (point-min) endpos))
+            (delete-region (point-min) endpos))))))
+            ;; (widen))))))
+
+  ;; (with-current-buffer (process-buffer process)
+  ;;   (goto-char (point-max))
+  ;;   (insert string)
+  ;;   (message "got string [%s]" string)))
     ;; (let* ((idx (re-search-backward "@END@\\([^@]+\\)@" nil t))
     ;;        (type (match-string-no-properties 1)))
     ;;   (when (and idx type)

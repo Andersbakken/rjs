@@ -408,7 +408,9 @@ server.on('connection', function(conn) {
 
 function formatXML(tag, str)
 {
-    return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
+    // if (str.indexOf('\n')
+    // return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
+    return "<" + tag + ">" + str + "</" + tag + ">";
 }
 
 var pendingStdIn = '';
@@ -452,8 +454,8 @@ process.stdin.on('readable', function() {
                         } else {
                             out = funcOrString;
                         }
-                        if (out)
-                            out += "\n";
+                        // if (out)
+                        //     out += "\n";
                         writeResponse(formatXML(msg.type, out));
                     }
                     if (response.type == rjs.MESSAGE_ERROR) {
