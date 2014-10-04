@@ -153,6 +153,10 @@ if (args.help) {
 
 var db = {};
 var server = new ws.Server({ port:args.port });
+server.on("error", function(err) {
+    log("Got error", err);
+    process.exit(1);
+});
 
 function processMessage(msg, chunked, sendFunc) {
     var msgType;
