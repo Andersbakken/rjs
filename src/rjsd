@@ -239,18 +239,15 @@ function processMessage(msg, chunked, sendFunc) {
             }
             for (var i=0; i<ret.symbols.length; ++i) {
                 var sym = ret.symbols[i];
-                sym.location = sym.location.slice();
                 var loc = resolveLocation(sym.location, fileName, false);
                 // console.log(loc);
                 if (sym.references) {
                     for (var r=0; r<sym.references.length; ++r) {
-                        sym.references[r] = sym.references[r].slice();
                         resolveLocation(sym.references[r], loc.file, true);
                     }
                 }
 
                 if (sym.target) {
-                    sym.target = sym.target.slice();
                     resolveLocation(sym.target, loc.file, true);
                 }
                 if (loc.file !== fileName) {
