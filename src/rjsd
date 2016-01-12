@@ -219,11 +219,61 @@ function processMessage(msg, chunked, sendFunc) {
             }
             log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
 
+            console.log(ret.symbolNames);
             verboseLog(ret);
             ret.indexTime = indexTime;
-            db[fileName] = ret;
+            var split = {};
+            // console.log(JSON.stringify(ret, undefined, 4));
+            function resolveLocation(arr, cmp, addFile) {
+                var resolved = preprocessor.resolveLocation(arr[0], source.files);
+                // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
+                if (resolved.file != cmp) {
+                    var diff = arr[0] - resolved.index;
+                    arr[0] = resolved.index;
+                    arr[1] -= diff;
+                    if (addFile) {
+                        arr[3] = resolved.file;
+                    }
+                }
+                return resolved;
+            }
+            for (var i=0; i<ret.symbols.length; ++i) {
+                var sym = ret.symbols[i];
+                sym.location = sym.location.slice();
+                var loc = resolveLocation(sym.location, fileName, false);
+                // console.log(loc);
+                if (sym.references) {
+                    for (var r=0; r<sym.references.length; ++r) {
+                        sym.references[r] = sym.references[r].slice();
+                        resolveLocation(sym.references[r], loc.file, true);
+                    }
+                }
+
+                if (sym.target) {
+                    sym.target = sym.target.slice();
+                    resolveLocation(sym.target, loc.file, true);
+                }
+                if (loc.file !== fileName) {
+                    var diff = sym.location[0] - loc.index;
+                    sym.location[0] = loc.index;
+                    sym.location[1] -= diff;
+                }
+                if (!split[loc.file]) {
+                    split[loc.file] = { symbols: [ sym ], symbolNames: {} };
+                } else {
+                    split[loc.file].symbols.push(sym);
+                }
+            }
+            // need to resolve symbolnames
+            for (var symbolName in ret.symbolNames) {
+                // var locations = ret.symbolNames
+            }
+
+            for (var f in split) {
+                db[f] = split[f];
+            }
             // ### need to resolve locations in ret to the various preprocessed files
-            console.log(JSON.stringify(ret, undefined, 4));
+            console.log(JSON.stringify(db, undefined, 4));
             return true;
         };
         if (index(true)) {
@@ -467,14 +517,14 @@ process.stdin.on('readable', function() {
                     if (response.type == rjs.MESSAGE_ERROR) {
                         write(response.text);
                     } else if (response.target) {
-                        write(rjs.printLocation({location:response.target}));
+                        write(rjs.printLocation({ location: response.target }));
                     } else if (response.references || response.locations) {
                         write(function() {
                             var fileCache = {};
                             var locs = response.references || response.locations;
                             var ret = [];
                             locs.forEach(function(loc) {
-                                ret.push(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
+                                ret.push(rjs.printLocation({ location: loc, showContext: true, fileCache: fileCache }));
                             });
                             return ret.join('\n');
                         });
@@ -482,7 +532,7 @@ process.stdin.on('readable', function() {
                         write(response.dump);
                     } else if (response.cursorInfo) {
                         write(function() {
-                            var ret = [ rjs.printLocation({location: response.cursorInfo.location}) ];
+                            var ret = [ rjs.printLocation({ location: response.cursorInfo.location }) ];
                             ret.push('Name: ' + response.cursorInfo.name + (response.cursorInfo.definition ? ' Definition' : ' Reference'));
                             if (response.cursorInfo.references && response.cursorInfo.references.length) {
                                 var fileCache = {};
