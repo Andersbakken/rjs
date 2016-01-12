@@ -1,0 +1,24 @@
+{
+  "name": "rjs",
+  "version": "1.0.0",
+  "description": "Javascript indexer",
+  "main": "rjsd",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/Andersbakken/rjs.git"
+  },
+  "keywords": [
+    "indexer",
+    "javascript",
+    "emacs"
+  ],
+  "author": "Anders Bakken",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Andersbakken/rjs/issues"
+  },
+  "homepage": "https://github.com/Andersbakken/rjs#readme"
+}

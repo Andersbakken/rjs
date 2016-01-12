@@ -7,8 +7,8 @@
 var safe = require('safetydance');
 var fs = require('fs');
 var ws = require('ws');
-var rjs = require('rjs');
-var indexer = require('indexer');
+var rjs = require('./rjs.js');
+var indexer = require('./indexer.js');
 var parseArgs = require('minimist');
 var usageString = ('Usage:\n$0 ...options\n' +
                    '-v|--verbose\n' +
