@@ -1,3 +1,4 @@
+/*global require, module */
 var esprima = require('esprima');
 var esrefactor = require('esrefactor');
 var estraverse = require('estraverse');
@@ -433,12 +434,13 @@ function listSymbols(symbolNames, prefix)
     var ret = [];
     if (symbolNames) {
         var len = symbolNames.length;
+        var i;
         if (!prefix) {
-            for (var i=0; i<len; ++i) {
+            for (i=0; i<len; ++i) {
                 ret.push(symbolNames[i].name);
             }
         } else {
-            for (var i=0; i<len; ++i) {
+            for ( i=0; i<len; ++i) {
                 var name = symbolNames[i].name;
                 if (name.lastIndexOf(prefix, 0) === 0)
                     ret.push(name);
