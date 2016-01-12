@@ -1,5 +1,2 @@
-/node_modules/minimist
-/node_modules/ws
-/node_modules/safetydance
-/node_modules/.bin
-/node_modules/
+/src/node_modules/
+/src/.DS_Store

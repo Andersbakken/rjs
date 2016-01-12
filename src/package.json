@@ -20,5 +20,34 @@
   "bugs": {
     "url": "https://github.com/Andersbakken/rjs/issues"
   },
-  "homepage": "https://github.com/Andersbakken/rjs#readme"
+  "homepage": "https://github.com/Andersbakken/rjs#readme",
+  "dependencies": {
+    "ambi": "^2.4.0",
+    "csextends": "^1.0.3",
+    "eachr": "^3.1.0",
+    "escope": "^3.3.0",
+    "esnextguardian": "^1.2.0",
+    "esprima": "^2.7.1",
+    "esrefactor": "^0.1.0",
+    "estraverse": "^4.1.1",
+    "expand-tilde": "^1.2.0",
+    "extendr": "^3.1.0",
+    "extract-opts": "^3.0.1",
+    "graceful-fs": "^4.1.2",
+    "ignorefs": "^1.0.0",
+    "ignorepatterns": "^1.0.1",
+    "minimist": "^1.2.0",
+    "optimist": "^0.6.1",
+    "options": "0.0.6",
+    "safefs": "^4.0.1",
+    "safetydance": "^0.1.0",
+    "scandirectory": "^2.5.0",
+    "taskgroup": "^4.3.1",
+    "typechecker": "^4.0.1",
+    "ultron": "^1.0.2",
+    "user-home": "^2.0.0",
+    "watchr": "^2.4.13",
+    "wordwrap": "^1.0.0",
+    "ws": "^1.0.1"
+  }
 }

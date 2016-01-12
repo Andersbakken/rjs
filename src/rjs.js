@@ -3,6 +3,7 @@ module.exports = (function() {
     var safe = require('safetydance');
     var path = require('path');
     var defPort = 5678;
+    var expandTilde = require('expand-tilde');
 
     return {
         // errors
@@ -67,7 +68,8 @@ module.exports = (function() {
                 console.error('Can\'t parse location', fileAndOffset);
                 return undefined;
             }
-            var stat = safe.fs.statSync(caps[1]);
+            var file = expandTilde(caps[1]);
+            var stat = safe.fs.statSync(file);
             if (!stat || !stat.isFile()) {
                 console.error(caps[1], 'doesn\'t seem to be a file');
                 return undefined;
@@ -90,6 +92,7 @@ module.exports = (function() {
                             cmd = { type: rjs.MESSAGE_ERROR, error: "--compile needs an argument" };
                             break;
                         }
+                        value = expandTilde(value);
                         var stat = safe.fs.statSync(value);
                         if (!stat || !stat.isFile()) {
                             cmd = { type: rjs.MESSAGE_ERROR, error: value + ' does not seem to be a file' };
@@ -115,6 +118,7 @@ module.exports = (function() {
                             cmd = { type: rjs.MESSAGE_ERROR, error: "--dump-file needs an argument" };
                             break;
                         }
+                        value = expandTilde(value);
                         var dstat = safe.fs.statSync(value);
                         if (!dstat || !dstat.isFile()) {
                             cmd = { type: rjs.MESSAGE_ERROR, error: value + ' does not seem to be a file' };

@@ -8,6 +8,7 @@ var safe = require('safetydance');
 var fs = require('fs');
 var ws = require('ws');
 var rjs = require('./rjs.js');
+var expandTile = require('expand-tilde');
 var indexer = require('./indexer.js');
 var parseArgs = require('minimist');
 var usageString = ('Usage:\n$0 ...options\n' +
@@ -82,7 +83,7 @@ function sendToOutput(verbosity, str)
 }
 
 function formatLog(args) {
-    var out = "";
+    var out = '';
     function add(obj) {
         var str;
         if (obj instanceof Object) {
@@ -92,7 +93,7 @@ function formatLog(args) {
             }
         }
         if (!str) {
-            str = "" + obj;
+            str = '' + obj;
         }
         if (out.length && out[out.length - 1] != ' ')
             out += ' ';
@@ -148,13 +149,13 @@ function exit(code, message, showUsage)
 
 
 if (args.help) {
-    exit(0, "", true);
+    exit(0, '', true);
 }
 
 var db = {};
 var server = new ws.Server({ port:args.port });
-server.on("error", function(err) {
-    log("Got error", err);
+server.on('error', function(err) {
+    log('Got error', err);
     process.exit(1);
 });
 
@@ -166,10 +167,10 @@ function processMessage(msg, chunked, sendFunc) {
         if (typeof msgType !== 'undefined')
             obj.type = msgType;
         sendFunc(obj);
-        verboseLog("sending", obj);
+        verboseLog('sending', obj);
     }
 
-    verboseLog("got message", msg);
+    verboseLog('got message', msg);
     if (!msg) {
         send({error: rjs.ERROR_PROTOCOL_ERROR});
         return;
@@ -195,12 +196,12 @@ function processMessage(msg, chunked, sendFunc) {
             }
         }
         function index(output) {
-            log("index", fileName);
+            log('index', fileName);
             var start = new Date();
             var source = safe.fs.readFileSync(fileName, { encoding:'utf8' });
             var indexTime = new Date();
             if (!source) {
-                console.error("Couldn't open", fileName, "for reading");
+                console.error('Couldn\'t open', fileName, 'for reading');
                 if (output)
                     send({error: rjs.ERROR_READFAILURE});
                 return false;
@@ -210,10 +211,10 @@ function processMessage(msg, chunked, sendFunc) {
 
             var ret = indexer.indexFile(source, fileName, args.verbose);
             if (!ret) {
-                console.error("Couldn't parse file", fileName);
+                console.error('Couldn\'t parse file', fileName);
                 return false;
             }
-            log("Indexed", fileName, "in", (new Date() - start), "ms", ret.symbols.length, "symbols and", ret.symbolNames.length, "symbol names");
+            log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
 
             verboseLog(ret);
             ret.indexTime = indexTime;
@@ -223,7 +224,7 @@ function processMessage(msg, chunked, sendFunc) {
         if (index(true)) {
             var onFileModified = function() {
                 var cached = db[fileName];
-                verboseLog(fileName, "was modified");
+                verboseLog(fileName, 'was modified');
                 if (!cached) {
                     fs.unwatch(fileName, onFileModified);
                     return;
@@ -233,7 +234,7 @@ function processMessage(msg, chunked, sendFunc) {
                     fs.unwatch(fileName, onFileModified);
                     return;
                 }
-                verboseLog(fileName, "was modified", stat.mtime, cached.indexTime);
+                verboseLog(fileName, 'was modified', stat.mtime, cached.indexTime);
                 if (stat.mtime > cached.indexTime) {
                     index(false);
                 }
@@ -261,7 +262,7 @@ function processMessage(msg, chunked, sendFunc) {
         function createLocation(loc) {
             return loc ? { file: msg.location.file, offset: loc[0] } : {};
         }
-        verboseLog("Found symbol", result);
+        verboseLog('Found symbol', result);
         if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
             send({ target: createLocation(result.symbol.target) });
         } else if (msg.type === rjs.MESSAGE_CURSOR_INFO) {
@@ -324,7 +325,7 @@ function processMessage(msg, chunked, sendFunc) {
         var symbolNameArray = [];
         function listSymbols(symbolNames) {
             var ret = indexer.listSymbols(symbolNames, msg.prefix);
-            verboseLog("Got results", ret);
+            verboseLog('Got results', ret);
             for (var i=0; i<ret.symbolNames.length; ++i) {
                 var name = ret.symbolNames[i];
                 if (!symbolNameObject[name]) {
@@ -356,7 +357,7 @@ function processMessage(msg, chunked, sendFunc) {
             }
             send({ dump: JSON.stringify(db[msg.file], null, 4) });
         } else {
-            var dump = "";
+            var dump = '';
             for (var ff in db) {
                 var entry = db[ff];
                 if (chunked) {
@@ -364,7 +365,7 @@ function processMessage(msg, chunked, sendFunc) {
                 } else {
                     if (dump)
                         dump += '\n';
-                    dump += ff + " " + entry.indexTime;
+                    dump += ff + ' ' + entry.indexTime;
                 }
             }
             if (dump) {
@@ -384,7 +385,7 @@ function processMessage(msg, chunked, sendFunc) {
 }
 
 server.on('connection', function(conn) {
-    verboseLog("Got a connection");
+    verboseLog('Got a connection');
     conn.on('close', function(message) {
         if (conn.log) {
             removeLog(conn);
@@ -393,7 +394,7 @@ server.on('connection', function(conn) {
     });
     conn.on('message', function(message) {
         var msg = safe.JSON.parse(message);
-        verboseLog("got message", msg);
+        verboseLog('got message', msg);
         if (msg.type == rjs.MESSAGE_LOG) {
             conn.log = true;
             addLog(conn, msg.verbose);
@@ -410,13 +411,13 @@ function formatXML(tag, str)
 {
     // if (str.indexOf('\n')
     // return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
-    return "<" + tag + ">" + str + "</" + tag + ">";
+    return '<' + tag + '>' + str + '</' + tag + '>';
 }
 
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
     var read = process.stdin.read();
-    verboseLog("Got stdin", read);
+    verboseLog('Got stdin', read);
     if (!read)
         return;
     pendingStdIn += read;
@@ -429,7 +430,7 @@ process.stdin.on('readable', function() {
             if (lines[i][0] === '-') {
                 var parsed = parseArgs(lines[i].split(/ +/), rjs.clientParseArgsOptions);
                 if (parsed.help) {
-                    writeResponse(formatXML("help", rjs.clientUsageString));
+                    writeResponse(formatXML('help', rjs.clientUsageString));
                     continue;
                 }
                 commands = rjs.createCommands(parsed);
@@ -437,14 +438,14 @@ process.stdin.on('readable', function() {
                 commands = [safe.JSON.parse(lines[i])];
             }
             if (!commands.length) {
-                writeResponse(formatXML("error" ,"Unknown command: " + lines[i]));
+                writeResponse(formatXML('error' ,'Unknown command: ' + lines[i]));
                 continue;
             }
             verboseLog(commands);
 
             commands.forEach(function(msg) {
                 processMessage(msg, false, function(response) {
-                    verboseLog("processing message", msg);
+                    verboseLog('processing message', msg);
                     function write(funcOrString) {
                         if (!funcOrString)
                             return;
@@ -455,7 +456,7 @@ process.stdin.on('readable', function() {
                             out = funcOrString;
                         }
                         // if (out)
-                        //     out += "\n";
+                        //     out += '\n';
                         writeResponse(formatXML(msg.type, out));
                     }
                     if (response.type == rjs.MESSAGE_ERROR) {
@@ -470,9 +471,9 @@ process.stdin.on('readable', function() {
                             locs.forEach(function(loc) {
                                 ret.push(rjs.printLocation({location: loc, showContext: true, fileCache: fileCache }));
                             });
-                            return ret.join("\n");
+                            return ret.join('\n');
                         });
-                    } else if (response.hasOwnProperty("dump")) {
+                    } else if (response.hasOwnProperty('dump')) {
                         write(response.dump);
                     } else if (response.cursorInfo) {
                         write(function() {
@@ -486,16 +487,16 @@ process.stdin.on('readable', function() {
                                                                 fileCache: fileCache, showContext: true }));
                                 });
                             }
-                            return ret.join("\n");
+                            return ret.join('\n');
                         });
                     } else if (response.symbolNames) {
-                        write(response.symbolNames.join("\n"));
+                        write(response.symbolNames.join('\n'));
                     } else if (response.type == rjs.MESSAGE_COMPILE) {
-                        verboseLog("Got compile", response);
+                        verboseLog('Got compile', response);
                     } else if (response.error != rjs.ERROR_OK) {
-                        verboseLog("Got error", response);
+                        verboseLog('Got error', response);
                     } else {
-                        console.error("Unknown response", response);
+                        console.error('Unknown response', response);
                     }
                 });
             });
