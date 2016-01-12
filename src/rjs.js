@@ -74,7 +74,7 @@ module.exports = (function() {
                 console.error(caps[1], 'doesn\'t seem to be a file');
                 return undefined;
             }
-            var file = path.resolve(caps[1]);
+            file = path.resolve(file);
             // return { file: caps[1], line: caps[2], column: caps[3] };
             return { file: file, offset: caps[2] };
         },
