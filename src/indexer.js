@@ -314,8 +314,8 @@ function indexFile(code, file, verbose)
             var loc = locations[i];
             var obj = { location: loc, name: name };
             if (defObj) {
-                defObj.references.push(loc);
-                obj.target = defObj.location;
+                defObj.references.push(loc.slice());
+                obj.target = defObj.location.slice();
             }
             // console.log("REALLY ADDING AN OBJECT", obj);
             ret.symbols.push(obj);
