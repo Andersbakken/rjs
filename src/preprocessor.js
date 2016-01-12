@@ -2,6 +2,8 @@
 
 function preprocess(file) {
     var fs = require('fs');
+    var path = require('path');
+
     var fileCache = {};
     function load(path) {
         if (fileCache.hasOwnProperty(path))
@@ -12,6 +14,7 @@ function preprocess(file) {
     }
 
     function process(file) {
+        file = path.resolve(file);
         // console.log("processing " + file);
         var src = load(file);
         var idx = -1, last = 0;
