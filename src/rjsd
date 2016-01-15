@@ -220,13 +220,13 @@ function processMessage(msg, chunked, sendFunc) {
             }
             log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
 
-            console.log(ret.symbolNames);
+            // console.log(ret.symbolNames);
             verboseLog(ret);
             ret.indexTime = indexTime;
             var split = {};
             // console.log(JSON.stringify(ret, undefined, 4));
             function resolveLocation(arr, cmp, addFile) {
-                var resolved = preprocessor.resolveLocation(arr[0], source.files);
+                var resolved = source.resolve(arr[0]);
                 // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
                 if (resolved.file != cmp) {
                     var diff = arr[0] - resolved.index;
