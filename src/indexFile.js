@@ -277,11 +277,17 @@ function indexFile(src, verbose)
     function add(name, scope) {
         var locations = scope.objects[name];
         // console.log("    add", name, locations, scope.index, scope.scopeStack);
-        if (!symbolNames[name]) {
-            symbolNames[name] = locations;
-        } else {
-            symbolNames[name] = symbolNames[name].concat(locations);
-        }
+        // ### not working
+        // for (var i=0; i<locations.length; ++i) {
+        //     // console.log("considering", name, JSON.stringify(locations[i]));
+        //     if (locations[i][2] > 0) {
+        //         if (!symbolNames[name]) {
+        //             symbolNames[name] = locations;
+        //         } else {
+        //             symbolNames[name] = symbolNames[name].concat(locations);
+        //         }
+        //     }
+        // }
 
         var i;
         var defObj;
@@ -346,13 +352,6 @@ function indexFile(src, verbose)
         return ret;
     });
 
-    for (var symbolName in symbolNames) {
-        ret.symbolNames.push({ name: symbolName.substr(0, symbolName.length - 1),
-                               locations: symbolNames[symbolName] });
-    }
-
-    ret.symbolNames.sort(function(l, r) { return l.name.localeCompare(r.name); });
-
     if (verbose >= 2) {
         estraverse.traverse(esrefactorContext._syntax, {
             enter: function(node) {
@@ -406,16 +405,35 @@ function indexFile(src, verbose)
             split[sym.location.file].symbols.push(sym);
         }
     }
-    console.log(JSON.stringify(split, null, 4));
+    // console.log(JSON.stringify(split, null, 4));
     // need to resolve symbolnames
-    for (var symName in ret.symbolNames) {
-        // console.log(symName, ret.symbolNames[symName]);
-        // var locations = ret.symbolNames
-    }
 
-    // for (var ss in split) {
-    //     console.log(ss, split[ss].symbols);
-    // }
+    for (var symbolName in symbolNames) {
+        var dbs = {};
+        var n = symbolName.substr(0, symbolName.length - 1);
+        symbolNames[symbolName].forEach(function(loc) {
+            var resolved = src.resolve(loc);
+            console.log("shit", symbolName, resolved);
+            if (!dbs[resolved.file]) {
+                dbs[resolved.file] = [ resolved ];
+            } else {
+                dbs[resolved.file].push(resolved);
+            }
+        });
+        for (var f in dbs) {
+            dbs[f].sort(function(l, r) {
+                var ret = l.start - r.start;
+                if (!ret)
+                    ret = l.end - r.end;
+                return ret;
+            });
+            split[f].symbolNames.push({ name: n, locations: dbs[f] });
+        }
+    }
+    for (var db in split) {
+        split[db].symbolNames.sort(function(l, r) { return l.name.localeCompare(r.name); });
+        console.log(db, JSON.stringify(split[db], null, 4));
+    }
 
     // console.log(split);
     return split;
