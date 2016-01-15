@@ -4,6 +4,7 @@ var esrefactor = require('esrefactor');
 var estraverse = require('estraverse');
 var bsearch = require('./bsearch');
 var Database = require('./Database');
+var Location = require('./Location');
 
 function indexFile(code, file, verbose)
 {
