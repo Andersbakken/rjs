@@ -9,11 +9,37 @@ function SourceCode(file) {
     this.code = "";
 };
 
-SourceCode.prototype.resolve = function resolveLocation(idx) {
+SourceCode.prototype.resolve = function resolveLocation(arg) {
+    var start;
+    var end;
+    var rank;
+    if (arg instanceof Array) {
+        start = arg[0];
+        end = arg[1];
+        rank = arg[2];
+    } else {
+        start = arg;
+    }
+    var removed = {};
+    // console.log("resolving", arg.toString());
     for (var i=0; i<this.files.length; ++i) {
-        if (idx < this.files[i].length)
-            return new Location(this.files[i].file, idx);
-        idx -= this.files[i].length;
+        // console.log(start, end, "looking at", this.files[i].length, this.files[i].file);
+        if (start < this.files[i].length) {
+            var cashback = removed[this.files[i].file] || 0;
+            // console.log("RETURNING", this.files[i].file, start, end, rank, removed, cashback);
+            if (end != undefined)
+                end += cashback;
+            return new Location(this.files[i].file, start + cashback, end, rank);
+        }
+        if (!removed[this.files[i].file]) {
+            removed[this.files[i].file] = this.files[i].length;
+        } else {
+            removed[this.files[i].file] += this.files[i].length;
+        }
+        // console.log(removed);
+        start -= this.files[i].length;
+        if (end != undefined)
+            end -= this.files[i].length;
     }
     return undefined;
 };

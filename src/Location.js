@@ -1,11 +1,11 @@
 /*global module */
 
-function Location(file, start, end, rank)
+function Location(file, start, end, type)
 {
     this.file = file;
     this.start = start;
     this.end = end;
-    this.rank = rank || 0;
+    this.type = type || 0;
 }
 
 Location.prototype = {
@@ -15,11 +15,17 @@ Location.prototype = {
             ret += "File: " + this.file + " ";
         ret += "Start: " + this.start;
         ret += " End: " + this.end;
-        if (this.rank)
-            ret += " Rank: " + this.rank;
+        switch (this.type) {
+        case this.REFERENCE: ret += "Type: Reference";
+        case this.MAYBE_REFERENCE: ret += "Type: MaybeReference";
+        case this.DEFINITION: ret += "Type: Definition";
+        }
         return ret;
     },
-    get index() { return this.start; }
+    get index() { return this.start; },
+    REFERENCE: 5,
+    MAYBE_REFERENCE: 3,
+    DEFINITION: 0
 };
 
 module.exports = Location;
