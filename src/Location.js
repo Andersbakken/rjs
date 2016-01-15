@@ -19,4 +19,4 @@ Location.prototype.toString = function() {
     return ret;
 };
 
-module.exports = Location;
+module.exports.Location = Location;
