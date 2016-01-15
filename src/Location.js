@@ -1,11 +1,11 @@
 /*global module */
 
-function Location()
+function Location(file, start, end, rank)
 {
-    this.start = arguments[0];
-    this.end = arguments[1];
-    this.rank = arguments[2];
-    this.file = arguments[3];
+    this.file = file;
+    this.start = start;
+    this.end = end;
+    this.rank = rank || 0;
 }
 
 Location.prototype.toString = function() {
