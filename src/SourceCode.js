@@ -5,6 +5,7 @@ var Location = require('./Location');
 function SourceCode(file) {
     this.mainFile = file;
     this.files = [];
+    this.indexTime = new Date();
     this.code = "";
 };
 

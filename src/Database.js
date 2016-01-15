@@ -1,9 +1,10 @@
 /*global module, require */
 
 var bsearch = require("./bsearch");
-function Database(file, symbols, symbolNames, errors)
+function Database(file, indexTime, symbols, symbolNames, errors)
 {
     this.file = file;
+    this.indexTime = indexTime;
     this.symbols = symbols || [];
     this.symbolNames = symbolNames || [];
     this.errors = errors || [];

@@ -6,32 +6,35 @@ var bsearch = require('./bsearch');
 var Database = require('./Database');
 var Location = require('./Location');
 
-function indexFile(code, file, verbose)
+function indexFile(src, verbose)
 {
     var REFERENCE = 5;
     var MAYBE_REFERENCE = 3;
     var DEFINITION = 0;
-    if (code.lastIndexOf("#!", 0) === 0) {
+    if (src.code.lastIndexOf("#!", 0) === 0) {
         var ch = 0;
         var header = "";
-        while (ch < code.length && code.charCodeAt(ch) !== 10) {
+        while (ch < src.code.length && src.charCodeAt(ch) !== 10) {
             ++ch;
             header += " ";
         }
-        code = header + code.substring(ch);
+        src.code = header + src.code.substring(ch);
         // console.log("replaced", ch);
     }
+    var ret;
     var esrefactorContext = new esrefactor.Context();
     var parsed;
     try {
-        parsed = esprima.parse(code, { tolerant: true, range: true });
+        parsed = esprima.parse(src.code, { tolerant: true, range: true });
     } catch (err) {
-        console.log("Got error", err, "for", code);
-        return new Database(file, undefined, undefined, [err]);
+        console.log("Got error", err, "for", src.code);
+        ret = {};
+        ret[src.mainFile] = new Database(src.mainFile, src.indexTime, undefined, undefined, [err]);
+        return ret;
     }
 
     if (!parsed)
-        throw new Error("Couldn't parse file " + file + ' ' + code.length);
+        throw new Error("Couldn't parse file " + src.mainFile + ' ' + src.code.length);
 
     esrefactorContext.setCode(parsed);
     if (!esrefactorContext._syntax)
@@ -43,7 +46,7 @@ function indexFile(code, file, verbose)
 
     function codeForLocation(range)
     {
-        return code.substring(range[0], range[1]);
+        return src.code.substring(range[0], range[1]);
     }
     function childKey(child) // slow
     {
@@ -272,7 +275,7 @@ function indexFile(code, file, verbose)
     });
 
     var symbolNames = {};
-    var ret = new Database(file);
+    ret = new Database(src.file, src.indexTime);
     function add(name, scope) {
         var locations = scope.objects[name];
         // console.log("    add", name, locations, scope.index, scope.scopeStack);
@@ -364,7 +367,53 @@ function indexFile(code, file, verbose)
     if (esrefactorContext._syntax.errors)
         ret.errors = esrefactorContext._syntax.errors;
     // console.log(file, "indexed");
-    return ret;
+
+    var split = {};
+    // console.log(JSON.stringify(ret, undefined, 4));
+    function resolveLocation(arr, cmp, addFile) {
+        var resolved = src.resolve(arr[0]);
+        // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
+        if (resolved.file != cmp) {
+            var diff = arr[0] - resolved.index;
+            arr[0] = resolved.index;
+            arr[1] -= diff;
+            if (addFile) {
+                arr[3] = resolved.file;
+            }
+        }
+        return resolved;
+    }
+    for (var i=0; i<ret.symbols.length; ++i) {
+        var sym = ret.symbols[i];
+        var loc = resolveLocation(sym.location, src.mainFile, false);
+        // console.log(loc);
+        if (sym.references) {
+            for (var r=0; r<sym.references.length; ++r) {
+                resolveLocation(sym.references[r], loc.file, true);
+            }
+        }
+
+        if (sym.target) {
+            resolveLocation(sym.target, loc.file, true);
+        }
+        if (loc.file !== src.mainFile) {
+            var diff = sym.location[0] - loc.index;
+            sym.location[0] = loc.index;
+            sym.location[1] -= diff;
+        }
+        // ### this code should be in indexer
+        if (!split[loc.file]) {
+            split[loc.file] = new Database(loc.file, src.indexTime, [ sym ]);
+        } else {
+            split[loc.file].symbols.push(sym);
+        }
+    }
+    // need to resolve symbolnames
+    for (var symName in ret.symbolNames) {
+        // var locations = ret.symbolNames
+    }
+
+    return split;
 }
 
 module.exports = indexFile;
