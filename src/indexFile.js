@@ -5,12 +5,10 @@ var estraverse = require('estraverse');
 var bsearch = require('./bsearch');
 var Database = require('./Database');
 var Location = require('./Location');
+var log = require('./log');
 
 function indexFile(src, verbose)
 {
-    var REFERENCE = 5;
-    var MAYBE_REFERENCE = 3;
-    var DEFINITION = 0;
     if (src.code.lastIndexOf("#!", 0) === 0) {
         var ch = 0;
         var header = "";
@@ -166,14 +164,14 @@ function indexFile(src, verbose)
     function indexIdentifier(node)
     {
         node.indexed = true;
-        var rank = MAYBE_REFERENCE;
+        var rank = Location.MAYBE_REFERENCE;
         var name = undefined;
         switch (node.parent.type) {
         case esprima.Syntax.VariableDeclarator:
             if (isChild("init")) {
-                rank = REFERENCE;
+                rank = Location.REFERENCE;
             } else {
-                rank = DEFINITION;
+                rank = Location.DEFINITION;
             }
             break;
         case esprima.Syntax.FunctionDeclaration:
@@ -183,10 +181,10 @@ function indexFile(src, verbose)
             // ### the Identifier for the catch clause should strictly
             // ### speaking be a scope of its own but only for that one
             // ### variable. Not handled right now
-            rank = DEFINITION;
+            rank = Location.DEFINITION;
             break;
         case esprima.Syntax.AssignmentExpression:
-            rank = MAYBE_REFERENCE;
+            rank = Location.MAYBE_REFERENCE;
             break;
         case esprima.Syntax.CallExpression:
         case esprima.Syntax.UnaryExpression:
@@ -202,12 +200,12 @@ function indexFile(src, verbose)
         case esprima.Syntax.LogicalExpression:
         case esprima.Syntax.ConditionalExpression:
         case esprima.Syntax.ArrayExpression:
-            rank = REFERENCE;
+            rank = Location.REFERENCE;
             break;
         case esprima.Syntax.MemberExpression:
             if (isChild("property", node))
                 name = qualifiedName(node.parent);
-            rank = (node.parent.parent.type == esprima.Syntax.AssignmentExpression ? MAYBE_REFERENCE : REFERENCE);
+            rank = (node.parent.parent.type == esprima.Syntax.AssignmentExpression ? Location.MAYBE_REFERENCE : Location.REFERENCE);
             break;
         default:
             // console.log("Shit", node.type);
@@ -288,17 +286,17 @@ function indexFile(src, verbose)
         var i;
         var defObj;
         var newDef = false;
-        if (locations[0][2] !== REFERENCE) {
+        if (locations[0][2] !== Location.REFERENCE) {
             defObj = { location: locations[0], definition: true, name: name.slice(0, -1), references: [] };
             newDef = true;
         }
-        if (locations[0][2] === DEFINITION) {
+        if (locations[0][2] === Location.DEFINITION) {
             scope.defs[name] = defObj;
         } else { // not a perfect hit, we need to search parent scopes
             for (var idx=scope.scopeStack.length - 1; idx>=0; --idx) {
                 var parentScope = scopes[scope.scopeStack[idx]];
                 var def = parentScope.defs[name];
-                if (def && (!defObj || def.location[2] === DEFINITION)) {
+                if (def && (!defObj || def.location[2] === Location.DEFINITION)) {
                     newDef = false;
                     defObj = def;
                     break;
@@ -370,49 +368,56 @@ function indexFile(src, verbose)
 
     var split = {};
     // console.log(JSON.stringify(ret, undefined, 4));
-    function resolveLocation(arr, cmp, addFile) {
-        var resolved = src.resolve(arr[0]);
-        // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
-        if (resolved.file != cmp) {
-            var diff = arr[0] - resolved.index;
-            arr[0] = resolved.index;
-            arr[1] -= diff;
-            if (addFile) {
-                arr[3] = resolved.file;
-            }
-        }
-        return resolved;
-    }
+    // function resolveLocation(arr) {
+    //     var resolved = src.resolve(arr[0]);
+    //     // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
+    //     var diff = arr[0] - resolved.index;
+    //         arr[0] = resolved.index;
+    //         arr[1] -= diff;
+    //         if (addFile) {
+    //             arr[3] = resolved.file;
+    //         }
+    //     }
+    //     return resolved;
+    // }
+    // console.log(ret.symbolNames);
     for (var i=0; i<ret.symbols.length; ++i) {
         var sym = ret.symbols[i];
-        var loc = resolveLocation(sym.location, src.mainFile, false);
+        sym.location = src.resolve(sym.location);
         // console.log(loc);
         if (sym.references) {
             for (var r=0; r<sym.references.length; ++r) {
-                resolveLocation(sym.references[r], loc.file, true);
+                sym.references[r] = src.resolve(sym.references[r]);
             }
         }
 
         if (sym.target) {
-            resolveLocation(sym.target, loc.file, true);
+            sym.target = src.resolve(sym.target);
         }
-        if (loc.file !== src.mainFile) {
-            var diff = sym.location[0] - loc.index;
-            sym.location[0] = loc.index;
-            sym.location[1] -= diff;
-        }
-        // ### this code should be in indexer
-        if (!split[loc.file]) {
-            split[loc.file] = new Database(loc.file, src.indexTime, [ sym ]);
+        // if (loc.file !== src.mainFile) {
+        //     var diff = sym.location[0] - loc.index;
+        //     sym.location[0] = loc.index;
+        //     sym.location[1] -= diff;
+        // }
+        if (!split[sym.location.file]) {
+            log.verboseLog("Creating database for " + sym.location);
+            split[sym.location.file] = new Database(sym.location.file, src.indexTime, [ sym ]);
         } else {
-            split[loc.file].symbols.push(sym);
+            split[sym.location.file].symbols.push(sym);
         }
     }
+    console.log(JSON.stringify(split, null, 4));
     // need to resolve symbolnames
     for (var symName in ret.symbolNames) {
+        // console.log(symName, ret.symbolNames[symName]);
         // var locations = ret.symbolNames
     }
 
+    // for (var ss in split) {
+    //     console.log(ss, split[ss].symbols);
+    // }
+
+    // console.log(split);
     return split;
 }
 

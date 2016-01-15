@@ -19,6 +19,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-l|--logfile\n' +
                    '-s|--silent\n' +
                    '-p|--port [default ' + rjs.defaultPort + ']\n');
+var log = require('./log');
 var parseArgsOptions = {
     alias: {
         l: 'logfile',
@@ -33,23 +34,15 @@ var parseArgsOptions = {
 };
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
 
-var outputs = [
-    {
-        log: function(str) { console.error(str); },
-        verbosity: args.silent ? 0 : args.verbose ? 2 : 1
-    }
-];
+log.addSink(new log.Sink(console.error.bind(console), args.silent ? 0 : args.verbose ? 2 : 1));
 
 if (args.logfile) {
-    var output = {
-        log: function(str) {
-            if (str[str.length - 1] != '\n')
-                str += '\n';
-            fs.appendFile(args.logfile, str, function (err) {});
-        },
-        verbosity: 2
-    };
-    outputs.push(output);
+    function logFile(str) {
+        if (str[str.length - 1] != '\n')
+            str += '\n';
+        fs.appendFile(args.logfile, str, function (err) {});
+    }
+    log.addSink(new log.Sink(logFile, 2));
 }
 
 function addLog(conn, verbose) {
@@ -61,55 +54,22 @@ function addLog(conn, verbose) {
         connection: conn
     };
 
-    outputs.push(output);
+    function logger(str) {
+        conn.send(JSON.stringify({type: rjs.MESSAGE_LOG, log: str, error: rjs.ERROR_MORE_DATA }));
+    }
+    var sink = new log.Sink(logger, verbose ? 2 : 1);
+    sink.conn = conn;
+    log.addSink(sink);
 }
 
 function removeLog(conn) {
-    for (var i=0; i<outputs.length; ++i) {
-        if (outputs[i].connection == conn) {
-            outputs.splice(i, 1);
+    for (var i=0; i<log.outputs.length; ++i) {
+        if (log.outputs[i].connection == conn) {
+            log.outputs.splice(i, 1);
             break;
         }
     }
 }
-
-function sendToOutput(verbosity, str)
-{
-    if (!str)
-        return;
-    for (var i=0; i<outputs.length; ++i) {
-        if (outputs[i].verbosity >= verbosity) {
-            outputs[i].log(str);
-        }
-    }
-}
-
-function formatLog(args) {
-    var out = '';
-    function add(obj) {
-        var str;
-        if (obj instanceof Object) {
-            try {
-                str = JSON.stringify(obj);
-            } catch (err) {
-            }
-        }
-        if (!str) {
-            str = '' + obj;
-        }
-        if (out.length && out[out.length - 1] != ' ')
-            out += ' ';
-        out += str;
-    }
-    for (var i=0; i<args.length; ++i) {
-        add(args[i]);
-    }
-    return out;
-}
-
-function writeResponse() { sendToOutput(0, formatLog(arguments)); }
-function log() { sendToOutput(1, formatLog(arguments)); }
-function verboseLog() { sendToOutput(2, formatLog(arguments)); }
 
 function exit(code, message, showUsage)
 {
@@ -157,7 +117,7 @@ if (args.help) {
 var db = {};
 var server = new ws.Server({ port:args.port });
 server.on('error', function(err) {
-    log('Got error', err);
+    log.log('Got error', err);
     process.exit(1);
 });
 
@@ -170,10 +130,10 @@ function processMessage(msg, chunked, sendFunc) {
         if (typeof msgType !== 'undefined')
             obj.type = msgType;
         sendFunc(obj);
-        verboseLog('sending', obj);
+        log.verboseLog('sending', obj);
     }
 
-    verboseLog('got message', msg);
+    log.verboseLog('got message', msg);
     if (!msg) {
         send({error: rjs.ERROR_PROTOCOL_ERROR});
         return;
@@ -199,16 +159,17 @@ function processMessage(msg, chunked, sendFunc) {
             }
         }
         function index(fromWatcher) {
-            log('index', fileName);
+            log.log('index', fileName);
             var start = new Date();
             var source = preprocessor.preprocess(fileName);
             if (!source) {
                 console.error('Couldn\'t preprocess', fileName);
-                if (output)
+                if (!fromWatcher)
                     send({error: rjs.ERROR_READFAILURE});
                 return false;
             }
-            if (output)
+            // console.log(source);
+            if (!fromWatcher)
                 send({});
 
             var ret = indexFile(source, args.verbose);
@@ -216,11 +177,11 @@ function processMessage(msg, chunked, sendFunc) {
                 console.error('Couldn\'t parse file', fileName);
                 return undefined;
             }
-            // log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
+            // log.log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
 
             // console.log(ret.symbolNames);
-            verboseLog(ret);
-            console.log(JSON.stringify(db, undefined, 4));
+            log.verboseLog(ret);
+            // console.log(JSON.stringify(db, undefined, 4));
             return ret;
         };
         var files = index(false);
@@ -228,7 +189,7 @@ function processMessage(msg, chunked, sendFunc) {
             function createOnFileModified(file) {
                 var func = function() {
                     var cached = db[file];
-                    verboseLog(file, 'was modified');
+                    log.verboseLog(file, 'was modified');
                     if (!cached) {
                         fs.unwatch(file, func);
                         return;
@@ -238,7 +199,7 @@ function processMessage(msg, chunked, sendFunc) {
                         fs.unwatch(file, func);
                         return;
                     }
-                    verboseLog(file, 'was modified', stat.mtime, cached.indexTime);
+                    log.verboseLog(file, 'was modified', stat.mtime, cached.indexTime);
                     if (stat.mtime > cached.indexTime) {
                         index(true);
                     }
@@ -272,7 +233,7 @@ function processMessage(msg, chunked, sendFunc) {
         function createLocation(loc) {
             return loc ? { file: msg.location.file, offset: loc[0] } : {};
         }
-        verboseLog('Found symbol', result);
+        log.verboseLog('Found symbol', result);
         if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
             send({ target: createLocation(result.symbol.target) });
         } else if (msg.type === rjs.MESSAGE_CURSOR_INFO) {
@@ -335,7 +296,7 @@ function processMessage(msg, chunked, sendFunc) {
         var symbolNameArray = [];
         function listSymbols(db) {
             var ret = db.listSymbols(msg.prefix);
-            verboseLog('Got results', ret);
+            log.verboseLog('Got results', ret);
             for (var i=0; i<ret.symbolNames.length; ++i) {
                 var name = ret.symbolNames[i];
                 if (!symbolNameObject[name]) {
@@ -395,7 +356,7 @@ function processMessage(msg, chunked, sendFunc) {
 }
 
 server.on('connection', function(conn) {
-    verboseLog('Got a connection');
+    log.verboseLog('Got a connection');
     conn.on('close', function(message) {
         if (conn.log) {
             removeLog(conn);
@@ -404,7 +365,7 @@ server.on('connection', function(conn) {
     });
     conn.on('message', function(message) {
         var msg = safe.JSON.parse(message);
-        verboseLog('got message', msg);
+        log.verboseLog('got message', msg);
         if (msg.type == rjs.MESSAGE_LOG) {
             conn.log = true;
             addLog(conn, msg.verbose);
@@ -427,7 +388,7 @@ function formatXML(tag, str)
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
     var read = process.stdin.read();
-    verboseLog('Got stdin', read);
+    log.verboseLog('Got stdin', read);
     if (!read)
         return;
     pendingStdIn += read;
@@ -440,7 +401,7 @@ process.stdin.on('readable', function() {
             if (lines[i][0] === '-') {
                 var parsed = parseArgs(lines[i].split(/ +/), rjs.clientParseArgsOptions);
                 if (parsed.help) {
-                    writeResponse(formatXML('help', rjs.clientUsageString));
+                    log.writeResponse(formatXML('help', rjs.clientUsageString));
                     continue;
                 }
                 commands = rjs.createCommands(parsed);
@@ -448,14 +409,14 @@ process.stdin.on('readable', function() {
                 commands = [safe.JSON.parse(lines[i])];
             }
             if (!commands.length) {
-                writeResponse(formatXML('error' ,'Unknown command: ' + lines[i]));
+                log.writeResponse(formatXML('error' ,'Unknown command: ' + lines[i]));
                 continue;
             }
-            verboseLog(commands);
+            log.verboseLog(commands);
 
             commands.forEach(function(msg) {
                 processMessage(msg, false, function(response) {
-                    verboseLog('processing message', msg);
+                    log.verboseLog('processing message', msg);
                     function write(funcOrString) {
                         if (!funcOrString)
                             return;
@@ -467,7 +428,7 @@ process.stdin.on('readable', function() {
                         }
                         // if (out)
                         //     out += '\n';
-                        writeResponse(formatXML(msg.type, out));
+                        log.writeResponse(formatXML(msg.type, out));
                     }
                     if (response.type == rjs.MESSAGE_ERROR) {
                         write(response.text);
@@ -502,9 +463,9 @@ process.stdin.on('readable', function() {
                     } else if (response.symbolNames) {
                         write(response.symbolNames.join('\n'));
                     } else if (response.type == rjs.MESSAGE_COMPILE) {
-                        verboseLog('Got compile', response);
+                        log.verboseLog('Got compile', response);
                     } else if (response.error != rjs.ERROR_OK) {
-                        verboseLog('Got error', response);
+                        log.verboseLog('Got error', response);
                     } else {
                         console.error('Unknown response', response);
                     }
