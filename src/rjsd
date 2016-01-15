@@ -162,6 +162,7 @@ server.on('error', function(err) {
 });
 
 function processMessage(msg, chunked, sendFunc) {
+    var f;
     var msgType;
     function send(obj) {
         if (!obj.error)
@@ -197,15 +198,12 @@ function processMessage(msg, chunked, sendFunc) {
                 return;
             }
         }
-        function index(output) {
+        function index(fromWatcher) {
             log('index', fileName);
             var start = new Date();
-            var source;
-            var indexTime = new Date();
-            try {
-                source = preprocessor.preprocess(fileName);
-            } catch (err) {
-                console.error('Couldn\'t preprocess', fileName, 'for reading', err.toString());
+            var source = preprocessor.preprocess(fileName);
+            if (!source) {
+                console.error('Couldn\'t preprocess', fileName);
                 if (output)
                     send({error: rjs.ERROR_READFAILURE});
                 return false;
@@ -213,87 +211,45 @@ function processMessage(msg, chunked, sendFunc) {
             if (output)
                 send({});
 
-            var ret = indexFile(source.code, fileName, args.verbose);
+            var ret = indexFile(source, args.verbose);
             if (!ret) {
                 console.error('Couldn\'t parse file', fileName);
-                return false;
+                return undefined;
             }
-            log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
+            // log('Indexed', fileName, 'in', (new Date() - start), 'ms', ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
 
             // console.log(ret.symbolNames);
             verboseLog(ret);
-            ret.indexTime = indexTime;
-            var split = {};
-            // console.log(JSON.stringify(ret, undefined, 4));
-            function resolveLocation(arr, cmp, addFile) {
-                var resolved = source.resolve(arr[0]);
-                // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
-                if (resolved.file != cmp) {
-                    var diff = arr[0] - resolved.index;
-                    arr[0] = resolved.index;
-                    arr[1] -= diff;
-                    if (addFile) {
-                        arr[3] = resolved.file;
-                    }
-                }
-                return resolved;
-            }
-            for (var i=0; i<ret.symbols.length; ++i) {
-                var sym = ret.symbols[i];
-                var loc = resolveLocation(sym.location, fileName, false);
-                // console.log(loc);
-                if (sym.references) {
-                    for (var r=0; r<sym.references.length; ++r) {
-                        resolveLocation(sym.references[r], loc.file, true);
-                    }
-                }
-
-                if (sym.target) {
-                    resolveLocation(sym.target, loc.file, true);
-                }
-                if (loc.file !== fileName) {
-                    var diff = sym.location[0] - loc.index;
-                    sym.location[0] = loc.index;
-                    sym.location[1] -= diff;
-                }
-                // ### this code should be in indexer
-                if (!split[loc.file]) {
-                    split[loc.file] = new Database(loc.file, [ sym ]);
-                } else {
-                    split[loc.file].symbols.push(sym);
-                }
-            }
-            // need to resolve symbolnames
-            for (var symbolName in ret.symbolNames) {
-                // var locations = ret.symbolNames
-            }
-
-            for (var f in split) {
-                db[f] = split[f];
-            }
-            // ### need to resolve locations in ret to the various preprocessed files
             console.log(JSON.stringify(db, undefined, 4));
-            return true;
+            return ret;
         };
-        if (index(true)) {
-            var onFileModified = function() {
-                var cached = db[fileName];
-                verboseLog(fileName, 'was modified');
-                if (!cached) {
-                    fs.unwatch(fileName, onFileModified);
-                    return;
-                }
-                var stat = safe.fs.statSync(fileName);
-                if (!stat) {
-                    fs.unwatch(fileName, onFileModified);
-                    return;
-                }
-                verboseLog(fileName, 'was modified', stat.mtime, cached.indexTime);
-                if (stat.mtime > cached.indexTime) {
-                    index(false);
-                }
-            };
-            fs.watch(fileName, onFileModified);
+        var files = index(false);
+        if (files) {
+            function createOnFileModified(file) {
+                var func = function() {
+                    var cached = db[file];
+                    verboseLog(file, 'was modified');
+                    if (!cached) {
+                        fs.unwatch(file, func);
+                        return;
+                    }
+                    var stat = safe.fs.statSync(file);
+                    if (!stat) {
+                        fs.unwatch(file, func);
+                        return;
+                    }
+                    verboseLog(file, 'was modified', stat.mtime, cached.indexTime);
+                    if (stat.mtime > cached.indexTime) {
+                        index(true);
+                    }
+                };
+                return func;
+            }
+
+            for (var file in files) {
+                db[file] = files[file];
+                fs.watch(file, createOnFileModified(file));
+            }
         }
         break;
 
@@ -366,7 +322,7 @@ function processMessage(msg, chunked, sendFunc) {
             }
             addLocations(msg.file);
         } else {
-            for (var f in db) {
+            for (f in db) {
                 addLocations(f);
             }
         }
@@ -395,8 +351,8 @@ function processMessage(msg, chunked, sendFunc) {
             }
             listSymbols(db[msg.file]);
         } else {
-            for (var file in db) {
-                listSymbols(db[file]);
+            for (f in db) {
+                listSymbols(db[f]);
             }
         }
         symbolNameArray.sort();
