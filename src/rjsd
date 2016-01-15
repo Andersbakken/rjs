@@ -7,9 +7,10 @@
 var safe = require('safetydance');
 var fs = require('fs');
 var ws = require('ws');
-var rjs = require('./rjs.js');
+var rjs = require('./rjs');
+var Database = require('./Database');
 var expandTile = require('expand-tilde');
-var indexer = require('./indexer.js');
+var indexFile = require('./indexFile');
 var preprocessor = require('./preprocessor.js');
 var parseArgs = require('minimist');
 var usageString = ('Usage:\n$0 ...options\n' +
@@ -212,7 +213,7 @@ function processMessage(msg, chunked, sendFunc) {
             if (output)
                 send({});
 
-            var ret = indexer.indexFile(source.code, fileName, args.verbose);
+            var ret = indexFile(source.code, fileName, args.verbose);
             if (!ret) {
                 console.error('Couldn\'t parse file', fileName);
                 return false;
@@ -255,8 +256,9 @@ function processMessage(msg, chunked, sendFunc) {
                     sym.location[0] = loc.index;
                     sym.location[1] -= diff;
                 }
+                // ### this code should be in indexer
                 if (!split[loc.file]) {
-                    split[loc.file] = { symbols: [ sym ], symbolNames: {} };
+                    split[loc.file] = new Database(loc.file, [ sym ]);
                 } else {
                     split[loc.file].symbols.push(sym);
                 }
@@ -306,7 +308,7 @@ function processMessage(msg, chunked, sendFunc) {
             send({error: rjs.ERROR_FILE_NOT_INDEXED});
             break;
         }
-        var result = indexer.findLocation(db[msg.location.file].symbols, msg.location.offset);
+        var result = db[msg.location.file].findSymbol(msg.location.offset);
         if (!result) {
             send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
             break;
@@ -322,7 +324,7 @@ function processMessage(msg, chunked, sendFunc) {
         } else {
             var startLoc = result.pos;
             if (!result.symbol.definition && result.symbol.target) {
-                var sym = indexer.findLocation(db[msg.location.file].symbols, result.symbol.target[0]);
+                var sym = db[msg.location.file].findSymbol(result.symbol.target[0]);
                 if (sym)
                     result = sym;
             }
@@ -350,7 +352,7 @@ function processMessage(msg, chunked, sendFunc) {
 
         var locations = [];
         function addLocations(file) {
-            var ret = indexer.findSymbolsByName(db[file].symbolNames, msg.symbolName);
+            var ret = db[file].findSymbolsByName(msg.symbolName);
             if (ret) {
                 for (var i=0; i<ret.locations.length; ++i) {
                     locations.push({ file: file, offset: ret.locations[i][0] });
@@ -375,8 +377,8 @@ function processMessage(msg, chunked, sendFunc) {
     case rjs.MESSAGE_LIST_SYMBOLS:
         var symbolNameObject = {};
         var symbolNameArray = [];
-        function listSymbols(symbolNames) {
-            var ret = indexer.listSymbols(symbolNames, msg.prefix);
+        function listSymbols(db) {
+            var ret = db.listSymbols(msg.prefix);
             verboseLog('Got results', ret);
             for (var i=0; i<ret.symbolNames.length; ++i) {
                 var name = ret.symbolNames[i];
@@ -391,10 +393,10 @@ function processMessage(msg, chunked, sendFunc) {
                 send({error: rjs.ERROR_FILE_NOT_INDEXED});
                 break;
             }
-            listSymbols(db[msg.file].symbolNames);
+            listSymbols(db[msg.file]);
         } else {
             for (var file in db) {
-                listSymbols(db[file].symbolNames);
+                listSymbols(db[file]);
             }
         }
         symbolNameArray.sort();

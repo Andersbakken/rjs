@@ -2,6 +2,8 @@
 var esprima = require('esprima');
 var esrefactor = require('esrefactor');
 var estraverse = require('estraverse');
+var bsearch = require('./bsearch');
+var Database = require('./Database');
 
 function indexFile(code, file, verbose)
 {
@@ -24,13 +26,12 @@ function indexFile(code, file, verbose)
         parsed = esprima.parse(code, { tolerant: true, range: true });
     } catch (err) {
         console.log("Got error", err, "for", code);
-        return { errors:[err], symbolNames: [], symbols: [] };
+        return new Database(file, undefined, undefined, [err]);
     }
 
-    if (!parsed) {
+    if (!parsed)
         throw new Error("Couldn't parse file " + file + ' ' + code.length);
-        return undefined;
-    }
+
     esrefactorContext.setCode(parsed);
     if (!esrefactorContext._syntax)
         throw new Error('Unable to identify anything without a syntax tree');
@@ -269,11 +270,8 @@ function indexFile(code, file, verbose)
         }
     });
 
-    // var ret = { objects:[] };
     var symbolNames = {};
-    var ret = { errors: [], symbols: [], symbolNames: [] };
-    // console.log(scopes.length);
-    // return ret;
+    var ret = new Database(file);
     function add(name, scope) {
         var locations = scope.objects[name];
         // console.log("    add", name, locations, scope.index, scope.scopeStack);
@@ -368,91 +366,4 @@ function indexFile(code, file, verbose)
     return ret;
 }
 
-function bsearch(array, compare)
-{
-    if (array) {
-        var min = 0;
-        var max = array.length - 1;
-        var cur;
-
-        while (min <= max) {
-            cur = (min + max) >> 1;
-            var cmp = compare(array[cur]);
-            if (cmp < 0) {
-                min = cur + 1;
-            } else if (cmp > 0) {
-                max = cur - 1;
-            } else {
-                return cur;
-            }
-        }
-    }
-    return undefined;
-}
-
-function findLocation(symbols, offset) {
-    if (symbols) {
-        function compare(currentElement) {
-            if (offset < currentElement.location[0]) {
-                return 1;
-            } else if (offset >= currentElement.location[0] && offset < currentElement.location[1]) {
-                return 0;
-            }
-            return -1;
-        }
-        var idx = bsearch(symbols, compare);
-        if (idx !== undefined) {
-            return { pos: symbols[idx].location[0], symbol: symbols[idx] };
-        }
-    }
-    return undefined;
-}
-
-function findSymbolsByName(symbolNames, name)
-{
-    if (symbolNames) {
-        function compare(currentElement) {
-            return currentElement.name.localeCompare(name);
-        }
-
-        var idx = bsearch(symbolNames, compare);
-        if (idx !== undefined) {
-            var locations = [];
-            for (var i=0; i<symbolNames[idx].locations.length; ++i) {
-                var loc = symbolNames[idx].locations[i];
-                if (loc[2] == 0 || (loc[2] == 3 && !i))
-                    locations.push(loc);
-            }
-            return { locations: locations };
-        }
-    }
-    return undefined;
-}
-
-function listSymbols(symbolNames, prefix)
-{
-    var ret = [];
-    if (symbolNames) {
-        var len = symbolNames.length;
-        var i;
-        if (!prefix) {
-            for (i=0; i<len; ++i) {
-                ret.push(symbolNames[i].name);
-            }
-        } else {
-            for ( i=0; i<len; ++i) {
-                var name = symbolNames[i].name;
-                if (name.lastIndexOf(prefix, 0) === 0)
-                    ret.push(name);
-            }
-        }
-    }
-    return { symbolNames: ret };
-}
-
-module.exports = {
-    indexFile: indexFile,
-    findLocation: findLocation,
-    findSymbolsByName: findSymbolsByName,
-    listSymbols: listSymbols
-};
+module.exports = indexFile;
