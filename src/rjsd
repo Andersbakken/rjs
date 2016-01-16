@@ -18,6 +18,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-h|--help\n' +
                    '-l|--logfile\n' +
                    '-s|--silent\n' +
+                   '-q|--quit-after-one-command\n' +
                    '-p|--port [default ' + rjs.defaultPort + ']\n');
 var log = require('./log');
 var parseArgsOptions = {
@@ -26,7 +27,8 @@ var parseArgsOptions = {
         v: 'verbose',
         p: 'port',
         h: 'help',
-        s: 'silent'
+        s: 'silent',
+        q: 'quit-after-one-command'
     },
     default: {
         p: rjs.defaultPort
@@ -471,6 +473,8 @@ process.stdin.on('readable', function() {
                     }
                 });
             });
+            if (args['quit-after-one-command'])
+                process.exit();
         }
         pendingStdIn = lines[lines.length - 1] || '';
     }
