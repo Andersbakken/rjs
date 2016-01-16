@@ -18,7 +18,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-h|--help\n' +
                    '-l|--logfile\n' +
                    '-s|--silent\n' +
-                   '-q|--quit-after-one-command\n' +
+                   '-q|--quit-after-commands\n' +
                    '-p|--port [default ' + rjs.defaultPort + ']\n');
 var log = require('./log');
 var parseArgsOptions = {
@@ -28,7 +28,7 @@ var parseArgsOptions = {
         p: 'port',
         h: 'help',
         s: 'silent',
-        q: 'quit-after-one-command'
+        q: 'quit-after-commands'
     },
     default: {
         p: rjs.defaultPort
@@ -220,20 +220,23 @@ function processMessage(msg, chunked, sendFunc) {
     case rjs.MESSAGE_FIND_REFERENCES:
     case rjs.MESSAGE_CURSOR_INFO:
         if (!msg.location || !msg.location.file || !msg.location.offset) {
+            log.verboseLog("rjs.ERROR_INVALID_LOCATION");
             send({error: rjs.ERROR_INVALID_LOCATION});
             break;
         }
         if (!db[msg.location.file]) {
+            log.verboseLog("rjs.ERROR_FILE_NOT_INDEXED");
             send({error: rjs.ERROR_FILE_NOT_INDEXED});
             break;
         }
         var result = db[msg.location.file].findSymbol(msg.location.offset);
         if (!result) {
+            log.verboseLog("rjs.ERROR_SYMBOL_NOT_FOUND");
             send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
             break;
         }
         function createLocation(loc) {
-            return loc ? { file: msg.location.file, offset: loc[0] } : {};
+            return loc ? { file: msg.location.file, offset: loc.start } : {};
         }
         log.verboseLog('Found symbol', result);
         if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
@@ -473,9 +476,9 @@ process.stdin.on('readable', function() {
                     }
                 });
             });
-            if (args['quit-after-one-command'])
-                process.exit();
         }
         pendingStdIn = lines[lines.length - 1] || '';
     }
+    if (args['quit-after-commands'])
+        process.exit();
 });

@@ -280,7 +280,7 @@ function indexFile(src, verbose)
         // ### not working
         for (var i=0; i<locations.length; ++i) {
             // console.log("considering", name, JSON.stringify(locations[i]));
-            if (locations[i][2] > 0) {
+            if (locations[i][2] != Location.REFERENCE) {
                 if (!symbolNames[name]) {
                     symbolNames[name] = locations;
                 } else {
@@ -372,20 +372,6 @@ function indexFile(src, verbose)
     // console.log(file, "indexed");
 
     var split = {};
-    // console.log(JSON.stringify(ret, undefined, 4));
-    // function resolveLocation(arr) {
-    //     var resolved = src.resolve(arr[0]);
-    //     // console.log("resolving ", arr[0], resolved, cmp, addFile, (resolved.file == cmp));
-    //     var diff = arr[0] - resolved.index;
-    //         arr[0] = resolved.index;
-    //         arr[1] -= diff;
-    //         if (addFile) {
-    //             arr[3] = resolved.file;
-    //         }
-    //     }
-    //     return resolved;
-    // }
-    // console.log(ret.symbolNames);
     for (var i=0; i<ret.symbols.length; ++i) {
         var sym = ret.symbols[i];
         sym.location = src.resolve(sym.location);
@@ -415,7 +401,7 @@ function indexFile(src, verbose)
     // console.log(JSON.stringify(split, null, 4));
     // need to resolve symbolNames
 
-    console.log(symbolNames);
+    // console.log(symbolNames);
     for (var symbolName in symbolNames) {
         var dbs = {};
         var n = symbolName.substr(0, symbolName.length - 1);
