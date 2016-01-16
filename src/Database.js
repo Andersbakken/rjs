@@ -13,16 +13,16 @@ function Database(file, indexTime, symbols, symbolNames, errors)
 Database.prototype.findSymbol = function(offset) {
     if (this.symbols) {
         function compare(currentElement) {
-            if (offset < currentElement.location[0]) {
+            if (offset < currentElement.location.start) {
                 return 1;
-            } else if (offset >= currentElement.location[0] && offset < currentElement.location[1]) {
+            } else if (offset >= currentElement.location.start && offset < currentElement.location.end) {
                 return 0;
             }
             return -1;
         }
         var idx = bsearch(this.symbols, compare);
         if (idx !== undefined) {
-            return { pos: this.symbols[idx].location[0], symbol: this.symbols[idx] };
+            return { pos: this.symbols[idx].location.start, symbol: this.symbols[idx] };
         }
     }
     return undefined;

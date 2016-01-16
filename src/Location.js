@@ -13,9 +13,8 @@ Location.DEFINITION = 1;
 
 Location.prototype = {
     toString: function() {
-        var ret = "";
-        if (this.file)
-            ret += "File: " + this.file + " ";
+        var ret = this.file + ',' + this.start + ' ';
+        ret += "File: " + this.file + " ";
         ret += "Start: " + this.start;
         ret += " End: " + this.end;
         switch (this.type) {
