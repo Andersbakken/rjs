@@ -236,7 +236,7 @@ function processMessage(msg, chunked, sendFunc) {
             break;
         }
         function createLocation(loc) {
-            return loc ? { file: msg.location.file, offset: loc.start } : {};
+            return loc ? { file: loc.file, offset: loc.start } : {};
         }
         log.verboseLog('Found symbol', result);
         if (msg.type === rjs.MESSAGE_FOLLOW_SYMBOL) {
