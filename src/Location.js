@@ -7,6 +7,9 @@ function Location(file, start, end, type)
     this.end = end;
     this.type = type || 0;
 }
+Location.REFERENCE = 3;
+Location.MAYBE_REFERENCE = 2;
+Location.DEFINITION = 1;
 
 Location.prototype = {
     toString: function() {
@@ -22,10 +25,7 @@ Location.prototype = {
         }
         return ret;
     },
-    get index() { return this.start; },
-    REFERENCE: 5,
-    MAYBE_REFERENCE: 3,
-    DEFINITION: 0
+    get index() { return this.start; }
 };
 
 module.exports = Location;
