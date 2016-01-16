@@ -7,29 +7,29 @@ module.exports = (function() {
 
     return {
         // errors
-        ERROR_OK: "ok",
-        ERROR_READFAILURE: "read failure",
-        ERROR_PARSE_FAILURE: "parse failure",
-        ERROR_MISSING_FILE: "missing file",
-        ERROR_PROTOCOL_ERROR: "protocol error",
-        ERROR_FILE_ALREADY_INDEXED: "file already indexed",
-        ERROR_INVALID_LOCATION: "invalid location",
-        ERROR_FILE_NOT_INDEXED: "file not indexed",
-        ERROR_SYMBOL_NOT_FOUND: "symbol not found",
-        ERROR_MORE_DATA: "more data",
-        ERROR_STATFAILURE: "stat failure",
-        ERROR_MISSING_SYMBOLNAME: "missing symbolname",
-        ERROR_UNKNOWN_COMMAND: "unknown command",
+        ERROR_OK: 'ok',
+        ERROR_READFAILURE: 'read failure',
+        ERROR_PARSE_FAILURE: 'parse failure',
+        ERROR_MISSING_FILE: 'missing file',
+        ERROR_PROTOCOL_ERROR: 'protocol error',
+        ERROR_FILE_ALREADY_INDEXED: 'file already indexed',
+        ERROR_INVALID_LOCATION: 'invalid location',
+        ERROR_FILE_NOT_INDEXED: 'file not indexed',
+        ERROR_SYMBOL_NOT_FOUND: 'symbol not found',
+        ERROR_MORE_DATA: 'more data',
+        ERROR_STATFAILURE: 'stat failure',
+        ERROR_MISSING_SYMBOLNAME: 'missing symbolname',
+        ERROR_UNKNOWN_COMMAND: 'unknown command',
 
-        MESSAGE_COMPILE: "compile",
-        MESSAGE_FOLLOW_SYMBOL: "follow-symbol",
-        MESSAGE_FIND_REFERENCES: "find-references",
-        MESSAGE_DUMP: "dump",
-        MESSAGE_CURSOR_INFO: "cursor-info",
-        MESSAGE_FIND_SYMBOLS: "find-symbols",
-        MESSAGE_LIST_SYMBOLS: "list-symbols",
-        MESSAGE_LOG: "log",
-        MESSAGE_ERROR: "error",
+        MESSAGE_COMPILE: 'compile',
+        MESSAGE_FOLLOW_SYMBOL: 'follow-symbol',
+        MESSAGE_FIND_REFERENCES: 'find-references',
+        MESSAGE_DUMP: 'dump',
+        MESSAGE_CURSOR_INFO: 'cursor-info',
+        MESSAGE_FIND_SYMBOLS: 'find-symbols',
+        MESSAGE_LIST_SYMBOLS: 'list-symbols',
+        MESSAGE_LOG: 'log',
+        MESSAGE_ERROR: 'error',
 
         defaultPort: defPort,
 
@@ -41,7 +41,7 @@ module.exports = (function() {
             var header = options.header;
             var fileCache = options.fileCache;
             var showContext = options.showContext;
-            // console.log("options", options);
+            // console.log('options', options);
             var out = (header || '') + loc.file + ',' + loc.offset;
             if (showContext) {
                 var contents = fileCache[loc.file];
@@ -88,8 +88,8 @@ module.exports = (function() {
                     var cmd;
                     switch (arg) {
                     case 'compile':
-                        if (typeof value != "string") {
-                            cmd = { type: rjs.MESSAGE_ERROR, error: "--compile needs an argument" };
+                        if (typeof value != 'string') {
+                            cmd = { type: rjs.MESSAGE_ERROR, error: '--compile needs an argument' };
                             break;
                         }
                         value = expandTilde(value);
@@ -114,8 +114,8 @@ module.exports = (function() {
                         cmd = { type: rjs.MESSAGE_DUMP };
                         break;
                     case 'dump-file':
-                        if (typeof value != "string") {
-                            cmd = { type: rjs.MESSAGE_ERROR, error: "--dump-file needs an argument" };
+                        if (typeof value != 'string') {
+                            cmd = { type: rjs.MESSAGE_ERROR, error: '--dump-file needs an argument' };
                             break;
                         }
                         value = expandTilde(value);
@@ -137,7 +137,7 @@ module.exports = (function() {
                         cmd = { type: rjs.MESSAGE_FIND_SYMBOLS, file: file, symbolName: value };
                         break;
                     default:
-                        console.error("Invalid command:", arg);
+                        console.error('Invalid command:', arg);
                         break;
                     }
 
