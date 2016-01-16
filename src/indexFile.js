@@ -278,22 +278,28 @@ function indexFile(src, verbose)
         var locations = scope.objects[name];
         // console.log("    add", name, locations, scope.index, scope.scopeStack);
         // ### not working
-        // for (var i=0; i<locations.length; ++i) {
-        //     // console.log("considering", name, JSON.stringify(locations[i]));
-        //     if (locations[i][2] > 0) {
-        //         if (!symbolNames[name]) {
-        //             symbolNames[name] = locations;
-        //         } else {
-        //             symbolNames[name] = symbolNames[name].concat(locations);
-        //         }
-        //     }
-        // }
+        for (var i=0; i<locations.length; ++i) {
+            // console.log("considering", name, JSON.stringify(locations[i]));
+            if (locations[i][2] > 0) {
+                if (!symbolNames[name]) {
+                    symbolNames[name] = locations;
+                } else {
+                    symbolNames[name] = symbolNames[name].concat(locations);
+                }
+            }
+        }
 
         var i;
         var defObj;
         var newDef = false;
+        var realName = name.slice(0, -10);
         if (locations[0][2] !== Location.REFERENCE) {
-            defObj = { location: locations[0], definition: true, name: name.slice(0, -1), references: [] };
+            defObj = {
+                location: locations[0],
+                definition: true,
+                name: realName,
+                references: []
+            };
             newDef = true;
         }
         if (locations[0][2] === Location.DEFINITION) {
@@ -318,7 +324,7 @@ function indexFile(src, verbose)
         }
         while (i < locations.length) {
             var loc = locations[i];
-            var obj = { location: loc, name: name };
+            var obj = { location: loc, name: realName };
             if (defObj) {
                 defObj.references.push(loc.slice());
                 obj.target = defObj.location.slice();
@@ -399,21 +405,22 @@ function indexFile(src, verbose)
         //     sym.location[1] -= diff;
         // }
         if (!split[sym.location.file]) {
-            log.verboseLog("Creating database for " + sym.location);
+            log.verboseLog("Creating database for " + sym);
             split[sym.location.file] = new Database(sym.location.file, src.indexTime, [ sym ]);
         } else {
+            console.log("ADDING SYM", sym);
             split[sym.location.file].symbols.push(sym);
         }
     }
     // console.log(JSON.stringify(split, null, 4));
-    // need to resolve symbolnames
+    // need to resolve symbolNames
 
+    console.log(symbolNames);
     for (var symbolName in symbolNames) {
         var dbs = {};
         var n = symbolName.substr(0, symbolName.length - 1);
         symbolNames[symbolName].forEach(function(loc) {
             var resolved = src.resolve(loc);
-            console.log("shit", symbolName, resolved);
             if (!dbs[resolved.file]) {
                 dbs[resolved.file] = [ resolved ];
             } else {
