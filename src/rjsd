@@ -2,7 +2,7 @@
 
 // "use strict";
 
-/*global require, process, RJS, __filename*/
+/*global require, process, RJS, __filename, os*/
 
 var safe = require('safetydance');
 var fs = require('fs');
@@ -13,13 +13,17 @@ var expandTile = require('expand-tilde');
 var indexFile = require('./indexFile');
 var preprocessor = require('./preprocessor.js');
 var parseArgs = require('minimist');
+var os = require('os');
+var defaultDataDir = os.homedir() + '/.rjsd';
 var usageString = ('Usage:\n$0 ...options\n' +
                    '-v|--verbose\n' +
                    '-h|--help\n' +
                    '-l|--logfile\n' +
                    '-s|--silent\n' +
+                   '-C|--clear\n' +
+                   '-D|--data-dir [default: ' + defaultDataDir + ' ]\n' +
                    '-q|--quit-after-commands\n' +
-                   '-p|--port [default ' + rjs.defaultPort + ']\n');
+                   '-p|--port [default: ' + rjs.defaultPort + ' ]\n');
 var log = require('./log');
 var parseArgsOptions = {
     alias: {
@@ -28,10 +32,13 @@ var parseArgsOptions = {
         p: 'port',
         h: 'help',
         s: 'silent',
-        q: 'quit-after-commands'
+        q: 'quit-after-commands',
+        C: 'clear',
+        D: 'data-dir',
     },
     default: {
-        p: rjs.defaultPort
+        p: rjs.defaultPort,
+        D: defaultDataDir
     }
 };
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);
@@ -131,7 +138,8 @@ function processMessage(msg, chunked, sendFunc) {
             obj.error = rjs.ERROR_OK;
         if (typeof msgType !== 'undefined')
             obj.type = msgType;
-        sendFunc(obj);
+        if (sendFunc
+            sendFunc(obj);
         log.verboseLog('sending', obj);
     }
 
@@ -383,15 +391,15 @@ server.on('connection', function(conn) {
     });
 });
 
-function formatXML(tag, str)
-{
-    // if (str.indexOf('\n')
-    // return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
-    return '<' + tag + '>' + str + '</' + tag + '>';
-}
-
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
+    function formatXML(tag, str)
+    {
+        // if (str.indexOf('\n')
+        // return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
+        return '<' + tag + '>' + str + '</' + tag + '>';
+    }
+
     var read = process.stdin.read();
     log.verboseLog('Got stdin', read);
     if (!read)
@@ -482,3 +490,39 @@ process.stdin.on('readable', function() {
     if (args['quit-after-commands'])
         process.exit();
 });
+
+function deleteFolderRecursive(path)
+{
+    var files = [];
+    if( fs.existsSync(path) ) {
+        files = fs.readdirSync(path);
+        files.forEach(function(file,index){
+            var curPath = path + "/" + file;
+            if(fs.lstatSync(curPath).isDirectory()) { // recurse
+                deleteFolderRecursive(curPath);
+            } else { // delete file
+                fs.unlinkSync(curPath);
+            }
+        });
+        fs.rmdirSync(path);
+    }
+}
+
+
+console.log(args['data-dir']);
+var indexed;
+if (args.clear) {
+    deleteFolderRecursive(args['data-dir']);
+} else {
+    var contents = safe.fs.readFileSync(args['data-dir'] + '/indexed.json');
+    if (contents) {
+        indexed = safe.JSON.parse(contents);
+    }
+}
+safe.fs.mkdirSync(args['data-dir']);
+if (indexed && indexed.files instanceof Array) {
+    indexed.files.forEach(function(file) {
+
+    });
+}
+// console.log(indexed);
