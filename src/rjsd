@@ -218,8 +218,9 @@ function processMessage(msg, chunked, sendFunc) {
             }
 
             for (var file in files) {
+                if (!db[file])
+                    fs.watch(file, createOnFileModified(file));
                 db[file] = files[file];
-                fs.watch(file, createOnFileModified(file));
             }
         }
         break;
