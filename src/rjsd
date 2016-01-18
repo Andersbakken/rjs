@@ -2,7 +2,7 @@
 
 // "use strict";
 
-/*global require, process, RJS, __filename, os*/
+/*global require, process, RJS, __filename, setTimeout, os*/
 
 var safe = require('safetydance');
 var fs = require('fs');
@@ -22,7 +22,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-s|--silent\n' +
                    '-C|--clear\n' +
                    '-D|--data-dir [default: ' + defaultDataDir + ' ]\n' +
-                   '-q|--quit-after-commands\n' +
+                   '-q|--quit-after [seconds]\n' +
                    '-p|--port [default: ' + rjs.defaultPort + ' ]\n');
 var log = require('./log');
 var parseArgsOptions = {
@@ -32,9 +32,9 @@ var parseArgsOptions = {
         p: 'port',
         h: 'help',
         s: 'silent',
-        q: 'quit-after-commands',
         C: 'clear',
         D: 'data-dir',
+        q: 'quit-after'
     },
     default: {
         p: rjs.defaultPort,
@@ -138,7 +138,7 @@ function processMessage(msg, chunked, sendFunc) {
             obj.error = rjs.ERROR_OK;
         if (typeof msgType !== 'undefined')
             obj.type = msgType;
-        if (sendFunc
+        if (sendFunc)
             sendFunc(obj);
         log.verboseLog('sending', obj);
     }
@@ -419,7 +419,7 @@ process.stdin.on('readable', function() {
                 }
                 commands = rjs.createCommands(parsed);
             } else {
-                commands = [safe.JSON.parse(lines[i])];
+                commands = [ safe.JSON.parse(lines[i]) ];
             }
             if (!commands.length) {
                 log.writeResponse(formatXML('error' ,'Unknown command: ' + lines[i]));
@@ -487,8 +487,6 @@ process.stdin.on('readable', function() {
         }
         pendingStdIn = lines[lines.length - 1] || '';
     }
-    if (args['quit-after-commands'])
-        process.exit();
 });
 
 function deleteFolderRecursive(path)
@@ -525,4 +523,7 @@ if (indexed && indexed.files instanceof Array) {
 
     });
 }
-// console.log(indexed);
+
+if (args['quit-after'] > 0) {
+    setTimeout(function() { process.exit(); }, args['quit-after'] * 1000);
+}
