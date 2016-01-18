@@ -425,7 +425,7 @@ function indexFile(src, verbose)
     }
     for (var db in split) {
         split[db].symbolNames.sort(function(l, r) { return l.name.localeCompare(r.name); });
-        console.log(db, JSON.stringify(split[db], null, 4));
+        log.verboseLog(db, JSON.stringify(split[db], null, 4));
     }
 
     // console.log(split);
