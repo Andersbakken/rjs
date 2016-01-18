@@ -134,13 +134,14 @@ function processMessage(msg, chunked, sendFunc) {
     var f;
     var msgType;
     function send(obj) {
-        if (!obj.error)
-            obj.error = rjs.ERROR_OK;
-        if (typeof msgType !== 'undefined')
-            obj.type = msgType;
-        if (sendFunc)
+        if (sendFunc) {
+            if (!obj.error)
+                obj.error = rjs.ERROR_OK;
+            if (typeof msgType !== 'undefined')
+                obj.type = msgType;
             sendFunc(obj);
-        log.verboseLog('sending', obj);
+            log.verboseLog('sending', obj);
+        }
     }
 
     log.verboseLog('got message', msg);
@@ -521,7 +522,7 @@ if (args.clear) {
 safe.fs.mkdirSync(args['data-dir']);
 if (indexed && indexed.files instanceof Array) {
     indexed.files.forEach(function(file) {
-
+        processMessage({type: rjs.MESSAGE_COMPILE, file: file.file});
     });
 }
 
