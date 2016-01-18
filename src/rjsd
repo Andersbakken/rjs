@@ -10,8 +10,8 @@ var ws = require('ws');
 var rjs = require('./rjs');
 var Database = require('./Database');
 var expandTile = require('expand-tilde');
-var indexFile = require('./indexFile');
-var preprocessor = require('./preprocessor.js');
+var Indexer = require('./Indexer');
+var Preprocessor = require('./Preprocessor');
 var parseArgs = require('minimist');
 var os = require('os');
 var defaultDataDir = os.homedir() + '/.rjsd';
@@ -172,8 +172,8 @@ function processMessage(msg, chunked, sendFunc) {
         function index(fromWatcher) {
             log.log('index', fileName);
             var start = new Date();
-            var source = preprocessor.preprocess(fileName);
-            if (!source) {
+            var source = Preprocessor.preprocess(fileName);
+            if (!source || !source.code) {
                 console.error('Couldn\'t preprocess', fileName);
                 if (!fromWatcher)
                     send({error: rjs.ERROR_READFAILURE});
@@ -183,7 +183,8 @@ function processMessage(msg, chunked, sendFunc) {
             if (!fromWatcher)
                 send({});
 
-            var ret = indexFile(source, args.verbose);
+            var indexer = new Indexer(source, args.verbose);
+            var ret = indexer.index();
             if (!ret) {
                 console.error('Couldn\'t parse file', fileName);
                 return undefined;
