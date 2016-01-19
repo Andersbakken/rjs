@@ -298,15 +298,14 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
             }
             send({ dump: JSON.stringify(that.db[msg.file], null, 4) });
         } else {
-            var dump = '';
+            var objects = {};
+            var empty = true;
             for (var ff in that.db) {
-                var entry = that.db[ff];
-                if (dump)
-                    dump += '\n';
-                dump += ff + ' ' + entry.indexTime;
+                empty = false;
+                objects[ff] = that.db[ff].indexTime;
             }
-            if (dump) {
-                send({ dump: dump });
+            if (!empty) {
+                send({ dump: JSON.stringify(objects) });
             } else {
                 send({});
             }

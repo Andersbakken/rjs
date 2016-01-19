@@ -402,7 +402,7 @@ Indexer.prototype = {
                 log.verboseLog("Creating database for " + sym);
                 split[sym.location.file] = new Database(sym.location.file, this.source.indexTime, [ sym ]);
             } else {
-                console.log("ADDING SYM", sym);
+                log.verboseLog("ADDING SYM", sym);
                 split[sym.location.file].symbols.push(sym);
             }
         }
