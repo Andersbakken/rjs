@@ -219,6 +219,53 @@ module.exports = (function() {
                 'log',
                 'help'
             ]
+        },
+        elispEscape: function(str) {
+            var ret;
+            for (var i=0; i<str.length; ++i) {
+                var ch = str.charCodeAt(i);
+                switch (ch) {
+                case 34: // "
+                case 92: // \
+                case 10: // '\n'
+                case 9: // '\t'
+                    if (!ret) {
+                        if (i) {
+                            ret = str.substr(0, i);
+                        } else {
+                            ret = "";
+                        }
+                    }
+                    switch (str.ch) {
+                    case 34: // '"':
+                        ret += '\\"';
+                        break;
+                    case 10: // '\n':
+                        ret += '\\n';
+                        break;
+                    case 9: // '\t':
+                        ret += '\\t';
+                        break;
+                    case 92:
+                        ret += '\\\\';
+                        break;
+                    }
+                    break;
+                default:
+                    if (ret)
+                        ret += str.at(i); // ### inefficient, should store last
+                    break;
+                }
+            }
+            return ret ? ret : str;
         }
+
+        // responseOutputType: {
+        //     XML: "xml",
+        //     ELISP: "elisp"
+        // },
+
+        // formatResponse: function(response, responseOutputType) {
+        // }
     };
 })();
