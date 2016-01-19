@@ -15,6 +15,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-C|--clear\n' +
                    '-D|--data-dir [default: ' + defaultDataDir + ' ]\n' +
                    '-q|--quit-after [seconds]\n' +
+                   '-o|--format [raw (default), elisp, xml]\n' +
                    '-p|--port [default: ' + rjs.defaultPort + ' ]\n');
 var log = require('./log');
 var parseArgsOptions = {
@@ -26,11 +27,13 @@ var parseArgsOptions = {
         s: 'silent',
         C: 'clear',
         D: 'data-dir',
-        q: 'quit-after'
+        q: 'quit-after',
+        o: 'format'
     },
     default: {
         p: rjs.defaultPort,
-        D: defaultDataDir
+        D: defaultDataDir,
+        o: 'raw'
     }
 };
 var args = parseArgs(process.argv.slice(2), parseArgsOptions);

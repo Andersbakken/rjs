@@ -31,7 +31,18 @@ process.stdin.on('readable', function() {
         return type + ': ' + str;
     }
 
-    var format = formatElisp;
+    var format;
+    switch (Args.args.format) {
+    case 'elisp':
+        format = formatElisp;
+        break;
+    case 'raw':
+        format = formatRaw;
+        break;
+    case 'xml':
+        format = formatXML;
+        break;
+    }
 
     var read = process.stdin.read();
     log.verboseLog('Got stdin', read);
