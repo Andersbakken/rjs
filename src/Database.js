@@ -8,6 +8,7 @@ function Database(file, indexTime, symbols, symbolNames, errors)
     this.symbols = symbols || [];
     this.symbolNames = symbolNames || [];
     this.errors = errors || [];
+    this.source = undefined;
 }
 
 Database.prototype.findSymbol = function(offset) {

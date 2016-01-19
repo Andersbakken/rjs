@@ -42,6 +42,7 @@
     "optimist": "^0.6.1",
     "options": "0.0.6",
     "path": "^0.12.7",
+    "rmdir-recursive": "0.0.1",
     "safefs": "^4.0.1",
     "safetydance": "^0.1.0",
     "scandirectory": "^2.5.0",

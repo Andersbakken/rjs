@@ -7,10 +7,10 @@ var Database = require('./Database');
 var Location = require('./Location');
 var log = require('./log');
 var assert = require('assert');
+var verbose = require('./Args').args.verbose;
 
-function Indexer(src, verbose) {
+function Indexer(src) {
     this.source = src;
-    this.verbose = verbose;
     assert(this.source);
 }
 
@@ -366,7 +366,7 @@ Indexer.prototype = {
             return ret;
         });
 
-        if (this.verbose >= 2) {
+        if (verbose >= 2) {
             estraverse.traverse(esrefactorContext._syntax, {
                 enter: function(node) {
                     delete node.parent;
