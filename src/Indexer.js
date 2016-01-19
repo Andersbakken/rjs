@@ -208,6 +208,7 @@ Indexer.prototype = {
             case esprima.Syntax.LogicalExpression:
             case esprima.Syntax.ConditionalExpression:
             case esprima.Syntax.ArrayExpression:
+            case esprima.Syntax.SwitchStatement:
                 rank = Location.REFERENCE;
                 break;
             case esprima.Syntax.MemberExpression:
