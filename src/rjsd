@@ -49,7 +49,7 @@ process.stdin.on('readable', function() {
             log.verboseLog(commands);
 
             commands.forEach(function(msg) {
-                daemon.processMessage(msg, false, function(response) {
+                daemon.processMessage(msg, function(response) {
                     log.verboseLog('processing message', msg);
                     function write(funcOrString) {
                         if (!funcOrString)

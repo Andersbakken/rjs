@@ -63,7 +63,7 @@ function Daemon()
                     conn.log = true;
                     addLog(conn, msg.verbose);
                 } else {
-                    that.processMessage(safe.JSON.parse(message), true, function(data) {
+                    that.processMessage(safe.JSON.parse(message), function(data) {
                         if (conn)
                             conn.send(JSON.stringify(data));
                     });
@@ -77,7 +77,7 @@ function Daemon()
     });
 }
 
-Daemon.prototype.processMessage = function(msg, chunked, sendFunc) {
+Daemon.prototype.processMessage = function(msg, sendFunc) {
     var that = this;
     var f;
     var msgType;
@@ -301,13 +301,9 @@ Daemon.prototype.processMessage = function(msg, chunked, sendFunc) {
             var dump = '';
             for (var ff in that.db) {
                 var entry = that.db[ff];
-                if (chunked) {
-                    send({ error: rjs.ERROR_MORE_DATA, dump: ff + " " + entry.indexTime });
-                } else {
-                    if (dump)
-                        dump += '\n';
-                    dump += ff + ' ' + entry.indexTime;
-                }
+                if (dump)
+                    dump += '\n';
+                dump += ff + ' ' + entry.indexTime;
             }
             if (dump) {
                 send({ dump: dump });
