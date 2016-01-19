@@ -17,30 +17,30 @@ function Indexer(src) {
 Indexer.prototype = {
     index: function() {
         var that = this;
-        if (this.source.code.lastIndexOf("#!", 0) === 0) {
+        if (that.source.code.lastIndexOf("#!", 0) === 0) {
             var ch = 0;
             var header = "";
-            while (ch < this.source.code.length && this.source.charCodeAt(ch) !== 10) {
+            while (ch < that.source.code.length && that.source.code.charCodeAt(ch) !== 10) {
                 ++ch;
                 header += " ";
             }
-            this.source.code = header + this.source.code.substring(ch);
+            that.source.code = header + that.source.code.substring(ch);
             // console.log("replaced", ch);
         }
         var ret;
         var esrefactorContext = new esrefactor.Context();
         var parsed;
         try {
-            parsed = esprima.parse(this.source.code, { tolerant: true, range: true });
+            parsed = esprima.parse(that.source.code, { tolerant: true, range: true });
         } catch (err) {
-            console.log("Got error", err, "for", this.source.code);
+            console.log("Got error", err, "for", that.source.code);
             ret = {};
-            ret[this.source.mainFile] = new Database(this.source.mainFile, this.source.indexTime, undefined, undefined, [err]);
+            ret[that.source.mainFile] = new Database(that.source.mainFile, that.source.indexTime, undefined, undefined, [err]);
             return ret;
         }
 
         if (!parsed)
-            throw new Error("Couldn't parse file " + this.source.mainFile + ' ' + this.source.code.length);
+            throw new Error("Couldn't parse file " + that.source.mainFile + ' ' + that.source.code.length);
 
         esrefactorContext.setCode(parsed);
         if (!esrefactorContext._syntax)
@@ -52,7 +52,7 @@ Indexer.prototype = {
 
         function codeForLocation(range)
         {
-            return this.source.code.substring(range[0], range[1]);
+            return that.source.code.substring(range[0], range[1]);
         }
         function childKey(child) // slow
         {
@@ -281,7 +281,7 @@ Indexer.prototype = {
         });
 
         var symbolNames = {};
-        ret = new Database(this.source.file, this.source.indexTime);
+        ret = new Database(that.source.file, that.source.indexTime);
         function add(name, scope) {
             var i;
             var locations = scope.objects[name];
@@ -382,25 +382,25 @@ Indexer.prototype = {
         var split = {};
         for (var i=0; i<ret.symbols.length; ++i) {
             var sym = ret.symbols[i];
-            sym.location = this.source.resolve(sym.location);
+            sym.location = that.source.resolve(sym.location);
             // console.log(loc);
             if (sym.references) {
                 for (var r=0; r<sym.references.length; ++r) {
-                    sym.references[r] = this.source.resolve(sym.references[r]);
+                    sym.references[r] = that.source.resolve(sym.references[r]);
                 }
             }
 
             if (sym.target) {
-                sym.target = this.source.resolve(sym.target);
+                sym.target = that.source.resolve(sym.target);
             }
-            // if (loc.file !== this.source.mainFile) {
+            // if (loc.file !== that.source.mainFile) {
             //     var diff = sym.location[0] - loc.index;
             //     sym.location[0] = loc.index;
             //     sym.location[1] -= diff;
             // }
             if (!split[sym.location.file]) {
                 log.verboseLog("Creating database for " + sym);
-                split[sym.location.file] = new Database(sym.location.file, this.source.indexTime, [ sym ]);
+                split[sym.location.file] = new Database(sym.location.file, that.source.indexTime, [ sym ]);
             } else {
                 log.verboseLog("ADDING SYM", sym);
                 split[sym.location.file].symbols.push(sym);
