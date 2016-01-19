@@ -21,6 +21,18 @@ process.stdin.on('readable', function() {
         return '<' + tag + '>' + str + '</' + tag + '>';
     }
 
+    function formatElisp(type, str)
+    {
+        return "(cons '" + type + ' . "' + rjs.elispEscape(str) + '")';;
+    }
+
+    function formatRaw(type, str)
+    {
+        return type + ': ' + str;
+    }
+
+    var format = formatElisp;
+
     var read = process.stdin.read();
     log.verboseLog('Got stdin', read);
     if (!read)
@@ -35,7 +47,7 @@ process.stdin.on('readable', function() {
             if (lines[i][0] === '-') {
                 var parsed = Args.parseArgs(lines[i].split(/ +/), rjs.clientParseArgsOptions);
                 if (parsed.help) {
-                    log.writeResponse(formatXML('help', rjs.clientUsageString));
+                    log.writeResponse(format('help', rjs.clientUsageString));
                     continue;
                 }
                 commands = rjs.createCommands(parsed);
@@ -43,7 +55,7 @@ process.stdin.on('readable', function() {
                 commands = [ safe.JSON.parse(lines[i]) ];
             }
             if (!commands.length) {
-                log.writeResponse(formatXML('error' ,'Unknown command: ' + lines[i]));
+                log.writeResponse(format('error', 'Unknown command: ' + lines[i]));
                 continue;
             }
             log.verboseLog(commands);
@@ -62,7 +74,7 @@ process.stdin.on('readable', function() {
                         }
                         // if (out)
                         //     out += '\n';
-                        log.writeResponse(formatXML(msg.type, out));
+                        log.writeResponse(formatElisp(msg.type, out));
                     }
                     if (response.type == rjs.MESSAGE_ERROR) {
                         write(response.text);
@@ -86,11 +98,17 @@ process.stdin.on('readable', function() {
                             ret.push('Name: ' + response.cursorInfo.name + (response.cursorInfo.definition ? ' Definition' : ' Reference'));
                             if (response.cursorInfo.references && response.cursorInfo.references.length) {
                                 var fileCache = {};
-                                ret.push('References:');
-                                response.cursorInfo.references.forEach(function(loc) {
-                                    ret.push(rjs.printLocation({location: loc, header: '  ',
-                                                                fileCache: fileCache, showContext: true }));
-                                });
+                                if (response.cursorInfo.target) {
+                                    ret.push('Target: ' + rjs.printLocation({location: response.cursorInfo.target, header: '  ',
+                                                                             fileCache: fileCache, showContext: true }));
+                                }
+                                if (response.cursorInfo.references.length > 0) {
+                                    ret.push('References:');
+                                    response.cursorInfo.references.forEach(function(loc) {
+                                        ret.push(rjs.printLocation({location: loc, header: '  ',
+                                                                    fileCache: fileCache, showContext: true }));
+                                    });
+                                }
                             }
                             return ret.join('\n');
                         });
