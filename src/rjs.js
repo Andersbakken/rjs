@@ -21,7 +21,7 @@ module.exports = (function() {
         ERROR_MISSING_SYMBOLNAME: 'missing symbolname',
         ERROR_UNKNOWN_COMMAND: 'unknown command',
 
-        MESSAGE_COMPILE: 'compile',
+        MESSAGE_INDEX: 'index',
         MESSAGE_FOLLOW_SYMBOL: 'follow-symbol',
         MESSAGE_FIND_REFERENCES: 'find-references',
         MESSAGE_DUMP: 'dump',
@@ -30,6 +30,7 @@ module.exports = (function() {
         MESSAGE_LIST_SYMBOLS: 'list-symbols',
         MESSAGE_LOG: 'log',
         MESSAGE_ERROR: 'error',
+        MESSAGE_UNINDEX: 'unindex',
 
         defaultPort: defPort,
 
@@ -87,9 +88,9 @@ module.exports = (function() {
                 function createCommand(value) {
                     var cmd;
                     switch (arg) {
-                    case 'compile':
+                    case 'index':
                         if (typeof value != 'string') {
-                            cmd = { type: rjs.MESSAGE_ERROR, error: '--compile needs an argument' };
+                            cmd = { type: rjs.MESSAGE_ERROR, error: '--index needs an argument' };
                             break;
                         }
                         value = expandTilde(value);
@@ -99,7 +100,15 @@ module.exports = (function() {
                             break;
                         }
 
-                        cmd = { type: rjs.MESSAGE_COMPILE, file: path.resolve(value) };
+                        cmd = { type: rjs.MESSAGE_INDEX, file: path.resolve(value) };
+                        break;
+                    case 'unindex':
+                        if (typeof value != 'string') {
+                            cmd = { type: rjs.MESSAGE_ERROR, error: '--index needs an argument' };
+                            break;
+                        }
+                        value = expandTilde(value);
+                        cmd = { type: rjs.MESSAGE_UNINDEX, file: path.resolve(value) };
                         break;
                     case 'log':
                         cmd = { type: rjs.MESSAGE_LOG, verbose: parsed.verbose };
@@ -153,7 +162,8 @@ module.exports = (function() {
                 }
             }
 
-            add('compile');
+            add('index');
+            add('unindex');
             add('follow-symbol');
             add('find-references');
             add('dump-file');
@@ -165,7 +175,8 @@ module.exports = (function() {
             return commands;
         },
         clientUsageString: ('Usage:\n$0 ...options\n' +
-                            '  -c|--compile [file]\n' +
+                            '  -c|--index [file]\n' +
+                            '  -D|--unindex [file]\n' +
                             '  -f|--follow-symbol [location]\n' +
                             '  -r|--find-references [location]\n' +
                             '  -U|--dump-file [file]\n' +
@@ -182,7 +193,8 @@ module.exports = (function() {
                             '  -p|--port [port] (default ' + defPort + ')\n'),
         clientParseArgsOptions: {
             alias: {
-                c: 'compile',
+                c: 'index',
+                D: 'unindex',
                 f: 'follow-symbol',
                 r: 'find-references',
                 U: 'dump-file',
@@ -200,7 +212,13 @@ module.exports = (function() {
             default: {
                 p: defPort
             },
-            boolean: [ 'dump', 'no-context', 'verbose', 'log', 'help' ]
+            boolean: [
+                'dump',
+                'no-context',
+                'verbose',
+                'log',
+                'help'
+            ]
         }
     };
 })();
