@@ -1,5 +1,7 @@
 /*global module */
 
+'use strict';
+
 function Location(file, start, end, type)
 {
     this.file = file;

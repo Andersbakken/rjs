@@ -1,6 +1,6 @@
-// "use strict";
-
 /*global require, process, __filename, setTimeout, module*/
+
+'use strict';
 
 var Args = require('./Args');
 var ws = require('ws');
@@ -152,6 +152,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 FileSystemWatcher.watch(fileName, onFileModified);
                 return;
             }
+            require('fs').writeFileSync("/tmp/foo.js", source.code);
             source.all().forEach(function(file) {
                 FileSystemWatcher.watch(file, onFileModified);
             });

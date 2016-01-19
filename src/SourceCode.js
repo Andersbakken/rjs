@@ -1,5 +1,7 @@
 /*global require, module */
 
+'use strict';
+
 var Location = require('./Location');
 
 function SourceCode(file) {

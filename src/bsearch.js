@@ -1,5 +1,7 @@
 /*global module */
 
+'use strict';
+
 function bsearch(array, compare)
 {
     if (array) {
