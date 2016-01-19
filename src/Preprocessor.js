@@ -2,6 +2,7 @@
 
 var SourceCode = require('./SourceCode');
 var log = require('./log');
+var resolve = require('resolve').sync;
 
 function preprocess(file) {
     var fs = require('fs');
@@ -14,19 +15,26 @@ function preprocess(file) {
     function load(p) {
         if (fileCache.hasOwnProperty(p))
             return fileCache[p];
-        var contents = fs.readFileSync(p, { encoding: 'utf8' });
-        fileCache[p] = contents;
-        return contents;
+        try {
+            var contents = fs.readFileSync(p, { encoding: 'utf8' });
+            fileCache[p] = contents;
+            return contents;
+        } catch (err) {
+            log.verboseLog("Couldn't load file: " + err.toString());
+            return undefined;
+        }
     }
 
     function process(file) {
         file = path.resolve(cwd, file);
         log.verboseLog("processing", file, cwd);
         var src = load(file);
+        if (src === undefined)
+            return undefined;
         var idx = -1, last = 0;
         var ret = new SourceCode(file);
         function next() {
-            function includeDriver(index, best) {
+            function findInclude(index, best) {
                 while (true) {
                     index = src.indexOf('// include "', index + 1);
                     if (index === -1 || best >= 0 && index > best)
@@ -49,7 +57,7 @@ function preprocess(file) {
                 }
             }
 
-            function requireDriver(index, best) {
+            function findRequire(index, best) {
                 while (true) {
                     index = src.indexOf("require", index + 1);
                     // var match[0] = src.indexOf(/require *\\( *[']([^']+)['] *)/, index + 1);
@@ -68,16 +76,26 @@ function preprocess(file) {
                     }
 
                     var sub = src.substring(index - 1, newline - 1);
+
                     var match = /\brequire *\([ \t]*'([^']+)'[\t ]*\)/.exec(sub);
                     if (!match)
                         match = /\brequire *\([ \t]*"([^"]+)"[\t ]*\)/.exec(sub);
                     if (!match)
                         continue;
-                    return { file: match[1], index: index, next: newline + 1 };
+
+                    var resolved;
+                    try {
+                        resolved = resolve(match[1], { basedir: cwd + '/' });
+                    } catch (err) {
+                        log.verboseLog("Couldn't resolve require ", err.toString());
+                        continue;
+                    }
+
+                    return { file: resolved, index: index, next: newline + 1 };
                 }
             }
-            var inc = includeDriver(idx, -1);
-            var req = requireDriver(idx, inc ? inc.index : -1);
+            var inc = findInclude(idx, -1);
+            var req = findRequire(idx, inc ? inc.index : -1);
             if (inc && req) {
                 if (inc.index < req.index) {
                     idx = inc.next;
@@ -108,12 +126,14 @@ function preprocess(file) {
                 last = idx;
             }
             var data = process(included);
-            data.files.forEach(function(entry) {
-                entry.index += (idx + added);
-                ret.files.push(entry);
-            });
-            ret.code += data.code;
-            added += data.code.length;
+            if (data) {
+                data.files.forEach(function(entry) {
+                    entry.index += (idx + added);
+                    ret.files.push(entry);
+                });
+                ret.code += data.code;
+                added += data.code.length;
+            }
         }
         if (ret.files.length == 0) {
             ret.code = src;
