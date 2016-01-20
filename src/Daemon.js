@@ -142,8 +142,8 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                     delete that.db[file.file];
                 });
             }
-            log.log('index', fileName);
-            var start = new Date();
+            // log.log('index', fileName);
+            var start = Date.now();
             var source = Preprocessor.preprocess(fileName);
             if (!source || !source.code) {
                 console.error("Couldn't preprocess", fileName);
@@ -152,6 +152,12 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 FileSystemWatcher.watch(fileName, onFileModified);
                 return;
             }
+            // console.log(source.files);
+            // for (var i=0; i<source.code.length; ++i) {
+            //     console.log("resolve", i, source.resolve(i).file, source.resolve(i).start);
+            // }
+
+            // console.log("resolve", source.resolve(57));
             require('fs').writeFileSync("/tmp/foo.js", source.code);
             source.all().forEach(function(file) {
                 FileSystemWatcher.watch(file, onFileModified);
@@ -167,16 +173,22 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 console.error("Couldn't parse file", fileName);
                 return;
             }
-            // log.log('Indexed', fileName, 'in', (new Date() - start), 'ms',
-            // ret.symbols.length, 'symbols and', ret.symbolNames.length, 'symbol names');
+            var end = Date.now();
             // console.log(ret.symbolNames);
             log.verboseLog(ret);
             // console.log(JSON.stringify(db, undefined, 4));
             DataDir.add(fileName);
 
+            var syms = 0;
+            var symNames = 0;
             for (var file in ret) {
                 that.db[file] = ret[file];
+                syms += ret[file].symbols.length;
+                symNames += ret[file].symbolNames.length;
             }
+            log.log('Indexed', fileName, 'in', (end - start), 'ms',
+                    syms, 'symbols and', symNames, 'symbol names');
+
             that.db[fileName].source = source;
         };
         index(false);
@@ -186,18 +198,18 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
     case rjs.MESSAGE_FIND_REFERENCES:
     case rjs.MESSAGE_CURSOR_INFO:
         if (!msg.location || !msg.location.file || !msg.location.offset) {
-            log.verboseLog("rjs.ERROR_INVALID_LOCATION");
+            log.log("rjs.ERROR_INVALID_LOCATION");
             send({error: rjs.ERROR_INVALID_LOCATION});
             break;
         }
         if (!that.db[msg.location.file]) {
-            log.verboseLog("rjs.ERROR_FILE_NOT_INDEXED");
+            log.log("rjs.ERROR_FILE_NOT_INDEXED");
             send({error: rjs.ERROR_FILE_NOT_INDEXED});
             break;
         }
         var result = that.db[msg.location.file].findSymbol(msg.location.offset);
         if (!result) {
-            log.verboseLog("rjs.ERROR_SYMBOL_NOT_FOUND");
+            log.log("rjs.ERROR_SYMBOL_NOT_FOUND");
             send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
             break;
         }

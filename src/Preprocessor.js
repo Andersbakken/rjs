@@ -4,6 +4,45 @@ var SourceCode = require('./SourceCode');
 var log = require('./log');
 var resolve = require('resolve').sync;
 
+function neuterPreprocessingStatements(code)
+{
+    var ret = "";
+    var last = 0;
+    function processLine(from, to) {
+        if (from > last) {
+            ret += code.substring(last, from);
+        }
+        if (to < 0) {
+            last = to = code.length - 1;
+        } else {
+            last = to + 1;
+        }
+        var spaces = "";
+        while (from++ < to)
+            spaces += ' ';
+        ret += spaces;
+        return last;
+    }
+
+    var idx = 0;
+    if (code.charCodeAt(0) == 35) {
+        idx = processLine(0, code.indexOf('\n') - 1); // not handling single line files
+    }
+
+    while (true) {
+        idx = code.indexOf('\n#', idx);
+        if (idx == -1)
+            break;
+        idx = processLine(idx + 1, code.indexOf('\n', idx + 1) - 1);
+    }
+
+    if (last == 0)
+        return code;
+    if (last < code.length - 1)
+        ret += code.substring(last);
+    return ret;
+}
+
 function preprocess(file) {
     var fs = require('fs');
     var path = require('path');
@@ -17,7 +56,7 @@ function preprocess(file) {
             var contents = fs.readFileSync(p, { encoding: 'utf8' });
             return contents;
         } catch (err) {
-            log.verboseLog("Couldn't load file: " + err.toString());
+            log.log("Couldn't load file: " + err.toString());
             return undefined;
         }
     }
@@ -37,8 +76,10 @@ function preprocess(file) {
         var ret = new SourceCode(file);
         function next() {
             function findInclude(index, best) {
+                var oldold = index;
                 while (true) {
-                    index = src.indexOf('// #include "', index + 1);
+                    var old = index;
+                    index = src.indexOf('// #include "', index);
                     if (index === -1 || (best >= 0 && index > best)) {
                         return undefined;
                     }
@@ -48,7 +89,6 @@ function preprocess(file) {
                     }
                     var newline = src.indexOf('\n', index);
                     if (newline == -1) {
-                        index = -1;
                         return undefined;
                     }
 
@@ -57,7 +97,7 @@ function preprocess(file) {
                         continue;
                     }
                     var includedFile = src.substring(index + 13, quote);
-                    return { file: includedFile, index: index, next: newline + 1 };
+                    return { file: includedFile, index: index, next: newline };
                 }
             }
 
@@ -94,11 +134,11 @@ function preprocess(file) {
                         continue;
                     }
 
-                    return { file: resolved, index: index, next: index + match[0].length + 1 };
+                    return { file: resolved, index: index, next: index + match[0].length };
                 }
             }
-            var inc = findInclude(idx, -1);
-            var req = findRequire(idx, inc ? inc.index : -1);
+            var inc = findInclude(idx + 1, -1);
+            var req = findRequire(idx + 1, inc ? inc.index : -1);
             if (inc && req) {
                 if (inc.index < req.index) {
                     idx = inc.next;
@@ -121,20 +161,23 @@ function preprocess(file) {
         var added = 0;
         while (true) {
             var included = next();
-            if (!included)
+            if (!included) {
                 break;
+            }
             var data = process(included);
             if (data) {
                 if (idx > last) {
-                    ret.files.push({ index: last + added, length: idx - last, file: file });
-                    ret.code += src.substring(last, idx);
+                    ret.files.push({ index: last + added, length: idx - last + 1, file: file });
+                    ret.code += src.substring(last, idx + 1);
+                    // console.log("ADDING", idx + 1 - last, "FROM a.js");
                     last = idx;
                 }
                 data.files.forEach(function(entry) {
-                    entry.index += (idx + added);
+                    entry.index += (idx + added + 1);
                     ret.files.push(entry);
                 });
                 ret.code += data.code;
+                // console.log("ADDING", data.code.length, "FROM b.js");
                 added += data.code.length;
             }
         }
@@ -142,25 +185,26 @@ function preprocess(file) {
             ret.code = src;
             ret.files.push({ index: 0, length: src.length, file: file });
         } else if (last < src.length) {
-            ret.code += src.substr(last);
-            ret.files.push({ index: last + added, length: src.length - last, file: file });
+            ret.code += src.substr(last + 1);
+            // console.log("ADDING", src.substr(last).length, "FROM a.js");
+            ret.files.push({ index: last + added + 1, length: src.length - last, file: file });
         }
 
         return ret;
     }
-    return process(file);
+    var ret = process(file);
+    if (ret) {
+        ret.code = neuterPreprocessingStatements(ret.code);
+    }
+    return ret;
 }
 
-function resolveLocation(idx, files) {
-    for (var i=0; i<files.length; ++i) {
-        if (idx < files[i].length)
-            return { file: files[i].file, index: idx };
-        idx -= files[i].length;
-    }
-    return undefined;
-}
+// var src = preprocess("/Users/abakken/dev/nrdp/16.1/src/nrd/NBP/bridge/nrdp.js");
+// console.log(src.files);
+// require('fs').writeFileSync("/tmp/foo.js", src.code);
+// console.log(src.code);
+// process.exit();
 
 module.exports = {
-    preprocess: preprocess,
-    SourceCode: SourceCode
+    preprocess: preprocess
 };
