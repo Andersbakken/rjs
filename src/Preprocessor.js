@@ -26,26 +26,74 @@ function preprocess(file) {
         var idx = -1, last = 0;
         var ret = new SourceCode(file);
         function next() {
-            while (true) {
-                idx = src.indexOf('// include "', idx + 1);
-                if (idx === -1)
-                    return undefined;
-                if (idx && src[idx - 1] != '\n') {
-                    continue;
-                }
-                var newline = src.indexOf('\n', idx);
-                if (newline == -1) {
-                    idx = -1;
-                    return undefined;
-                }
+            function includeDriver(index, best) {
+                while (true) {
+                    index = src.indexOf('// include "', index + 1);
+                    if (index === -1 || best >= 0 && index > best)
+                        return undefined;
+                    if (index && src[index - 1] != '\n') {
+                        continue;
+                    }
+                    var newline = src.indexOf('\n', index);
+                    if (newline == -1) {
+                        index = -1;
+                        return undefined;
+                    }
 
-                var quote = src.indexOf('"', idx + 12);
-                if (quote >= newline) {
-                    continue;
+                    var quote = src.indexOf('"', index + 12);
+                    if (quote >= newline) {
+                        continue;
+                    }
+                    var includedFile = src.substring(index + 12, quote);
+                    return { file: includedFile, index: index, next: newline + 1 };
                 }
-                var includedFile = src.substring(idx + 12, quote);
-                idx = newline + 1;
-                return includedFile;
+            }
+
+            function requireDriver(index, best) {
+                while (true) {
+                    index = src.indexOf("require", index + 1);
+                    // var match[0] = src.indexOf(/require *\\( *[']([^']+)['] *)/, index + 1);
+                    if (index == -1 || best >= 0 && index > best)
+                        return undefined;
+
+                    if (index == 0) {
+                        // you can't really have require as the first word in your file
+                        continue;
+                    }
+
+                    var newline = src.indexOf('\n', index);
+                    if (newline == -1) {
+                        index = -1;
+                        return undefined;
+                    }
+
+                    var sub = src.substring(index - 1, newline - 1);
+                    var match = /\brequire *\([ \t]*'([^']+)'[\t ]*\)/.exec(sub);
+                    if (!match)
+                        match = /\brequire *\([ \t]*"([^"]+)"[\t ]*\)/.exec(sub);
+                    if (!match)
+                        continue;
+                    return { file: match[1], index: index, next: newline + 1 };
+                }
+            }
+            var inc = includeDriver(idx, -1);
+            var req = requireDriver(idx, inc ? inc.index : -1);
+            if (inc && req) {
+                if (inc.index < req.index) {
+                    idx = inc.next;
+                    return inc.file;
+                } else {
+                    idx = req.next;
+                    return req.file;
+                }
+            } else if (inc) {
+                idx = inc.next;
+                return inc.file;
+            } else if (req) {
+                idx = req.next;
+                return req.file;
+            } else {
+                return undefined;
             }
         }
 

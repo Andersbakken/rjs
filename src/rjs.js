@@ -236,7 +236,7 @@ module.exports = (function() {
                             ret = "";
                         }
                     }
-                    switch (str.ch) {
+                    switch (ch) {
                     case 34: // '"':
                         ret += '\\"';
                         break;
@@ -253,7 +253,7 @@ module.exports = (function() {
                     break;
                 default:
                     if (ret)
-                        ret += str.at(i); // ### inefficient, should store last
+                        ret += str[i]; // ### inefficient, should store last
                     break;
                 }
             }
