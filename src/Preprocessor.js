@@ -92,7 +92,7 @@ function preprocess(file) {
                         continue;
                     }
 
-                    return { file: resolved, index: index, next: newline + 1 };
+                    return { file: resolved, index: index, next: index + match[0].length + 1 };
                 }
             }
             var inc = findInclude(idx, -1);
