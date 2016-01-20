@@ -544,6 +544,14 @@
   (interactive)
   (rjs-select :other-window t :remove t))
 
+(defun rjs-copy-and-print-current-location()
+  (interactive)
+  (let ((loc (rjs-current-location)))
+    (if (not loc)
+        (message "No current location!")
+      (kill-new loc)
+      (message loc))))
+
 (provide 'rjs)
 
 ;;; rjs.el ends here

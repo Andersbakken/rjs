@@ -11,13 +11,10 @@ function preprocess(file) {
     file = path.resolve(file);
     var cwd = path.dirname(file);
 
-    var fileCache = {};
+    var seen = {};
     function load(p) {
-        if (fileCache.hasOwnProperty(p))
-            return fileCache[p];
         try {
             var contents = fs.readFileSync(p, { encoding: 'utf8' });
-            fileCache[p] = contents;
             return contents;
         } catch (err) {
             log.verboseLog("Couldn't load file: " + err.toString());
@@ -28,6 +25,11 @@ function preprocess(file) {
     function process(file) {
         file = path.resolve(cwd, file);
         log.verboseLog("processing", file, cwd);
+        if (seen[file]) {
+            log.verboseLog(file + ' has already been included');
+            return undefined;
+        }
+        seen[file] = true;
         var src = load(file);
         if (src === undefined)
             return undefined;
@@ -60,7 +62,6 @@ function preprocess(file) {
             function findRequire(index, best) {
                 while (true) {
                     index = src.indexOf("require", index + 1);
-                    // var match[0] = src.indexOf(/require *\\( *[']([^']+)['] *)/, index + 1);
                     if (index == -1 || best >= 0 && index > best)
                         return undefined;
 
@@ -77,9 +78,9 @@ function preprocess(file) {
 
                     var sub = src.substring(index - 1, newline - 1);
 
-                    var match = /\brequire *\([ \t]*'([^']+)'[\t ]*\)/.exec(sub);
+                    var match = /\brequire *\([ \t]*'(.\/[^']+)'[\t ]*\)/.exec(sub);
                     if (!match)
-                        match = /\brequire *\([ \t]*"([^"]+)"[\t ]*\)/.exec(sub);
+                        match = /\brequire *\([ \t]*"(.\/[^"]+)"[\t ]*\)/.exec(sub);
                     if (!match)
                         continue;
 
