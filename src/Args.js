@@ -1,6 +1,6 @@
 /*global require, process, rjs, module, setTimeout, os, __filename*/
 
-// "use strict";
+'use strict';
 
 var parseArgs = require('minimist');
 var os = require('os');

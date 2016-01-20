@@ -1,5 +1,7 @@
 /*global module, require */
 
+'use strict';
+
 var bsearch = require("./bsearch");
 function Database(file, indexTime, symbols, symbolNames, errors)
 {

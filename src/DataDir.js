@@ -1,5 +1,7 @@
 /*global require, module*/
 
+'use strict';
+
 var safe = require('safetydance');
 var Args = require('./Args');
 var log = require('./log');

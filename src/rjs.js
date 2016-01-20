@@ -1,4 +1,7 @@
 /*global safe, module, require */
+
+'use strict';
+
 module.exports = (function() {
     var safe = require('safetydance');
     var path = require('path');

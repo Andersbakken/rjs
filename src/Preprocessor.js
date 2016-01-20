@@ -78,9 +78,9 @@ function preprocess(file) {
 
                     var sub = src.substring(index - 1, newline - 1);
 
-                    var match = /\brequire *\([ \t]*'(.\/[^']+)'[\t ]*\)/.exec(sub);
+                    var match = /\brequire *\([ \t]*'([^']+)'[\t ]*\)/.exec(sub);
                     if (!match)
-                        match = /\brequire *\([ \t]*"(.\/[^"]+)"[\t ]*\)/.exec(sub);
+                        match = /\brequire *\([ \t]*"([^"]+)"[\t ]*\)/.exec(sub);
                     if (!match)
                         continue;
 
@@ -121,13 +121,13 @@ function preprocess(file) {
             var included = next();
             if (!included)
                 break;
-            if (idx > last) {
-                ret.files.push({ index: last + added, length: idx - last, file: file });
-                ret.code += src.substring(last, idx);
-                last = idx;
-            }
             var data = process(included);
             if (data) {
+                if (idx > last) {
+                    ret.files.push({ index: last + added, length: idx - last, file: file });
+                    ret.code += src.substring(last, idx);
+                    last = idx;
+                }
                 data.files.forEach(function(entry) {
                     entry.index += (idx + added);
                     ret.files.push(entry);

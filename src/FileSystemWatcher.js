@@ -1,5 +1,7 @@
 /*global require, process, module*/
 
+'use strict';
+
 var fs = require('fs');
 
 var watched = {};

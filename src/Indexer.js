@@ -1,4 +1,7 @@
 /*global require, module */
+
+'use strict';
+
 var esprima = require('esprima');
 var esrefactor = require('esrefactor');
 var estraverse = require('estraverse');
