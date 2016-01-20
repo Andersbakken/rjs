@@ -12,42 +12,43 @@ var Daemon = require('./Daemon');
 
 var daemon = new Daemon;
 
+function formatXML(tag, str)
+{
+    // if (str.indexOf('\n')
+    // return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
+    return '<' + tag + '>' + str + '</' + tag + '>';
+}
+
+function formatElisp(type, str)
+{
+    return "(cons '" + type + ' . "' + rjs.elispEscape(str) + '")';;
+}
+
+function formatRaw(type, str)
+{
+    return type + ': ' + str;
+}
+
+var format;
+switch (Args.args.format) {
+case 'elisp':
+    format = formatElisp;
+    break;
+case 'raw':
+    format = formatRaw;
+    break;
+case 'xml':
+    format = formatXML;
+    break;
+}
+
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
-    function formatXML(tag, str)
-    {
-        // if (str.indexOf('\n')
-        // return "<" + tag + " length=\"" + str.length + "\">" + str + "</" + tag + ">";
-        return '<' + tag + '>' + str + '</' + tag + '>';
-    }
-
-    function formatElisp(type, str)
-    {
-        return "(cons '" + type + ' . "' + rjs.elispEscape(str) + '")';;
-    }
-
-    function formatRaw(type, str)
-    {
-        return type + ': ' + str;
-    }
-
-    var format;
-    switch (Args.args.format) {
-    case 'elisp':
-        format = formatElisp;
-        break;
-    case 'raw':
-        format = formatRaw;
-        break;
-    case 'xml':
-        format = formatXML;
-        break;
-    }
-
     var read = process.stdin.read();
-    log.verboseLog('Got stdin', read);
+    console.log('Got stdin', read);
     if (!read)
         return;
+    console.log("GOT SOME STDIN", read);
     pendingStdIn += read;
     var lines = pendingStdIn.split('\n');
     if (lines.length > 1) {

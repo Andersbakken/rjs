@@ -265,48 +265,37 @@
                 ;; "</completions>"
                 )))
 
+(defvar rjsd-filter-errors nil)
 (defun rjsd-filter (process output)
   ;; Collect the xml diagnostics into "*RJS Raw*" until a closing tag is found
-  (with-current-buffer (get-buffer-create "*RJS Raw*")
-    (goto-char (point-max))
-    (let ((matchrx rjs-xml-regexps)
-          endpos)
+  (save-excursion
+    (with-current-buffer (get-buffer-create "*RJS Raw*")
+      (goto-char (point-max))
       (insert output)
-      ;; only try to process xml diagnostics if we detect an end condition
-      (when (string-match (rx "</") output)
-        (goto-char (point-min))
-        (while (search-forward-regexp matchrx (point-max) t)
-          (setq endpos (match-end 0))
-          ;; narrow to one xml result (incase multiple results come in together)
-          ;; (narrow-to-region (point-min) endpos)
-          ;; trim any whitespace from the beginning of the region
-          ;; otherwise `libxml-parse-xml-region' might fail
-          (rjs-trim-whitespace)
-          (rjs-handle-xml (xml-parse-region (point-min) endpos))
-          (delete-region (point-min) endpos))))))
-;; (widen))))))
-
-;; (with-current-buffer (process-buffer process)
-;;   (goto-char (point-max))
-;;   (insert string)
-;;   (message "got string [%s]" string)))
-;; (let* ((idx (re-search-backward "@END@\\([^@]+\\)@" nil t))
-;;        (type (match-string-no-properties 1)))
-;;   (when (and idx type)
-;;     (cond ((string= type "MESSAGE_COMPILE") t)
-;;           ((string= type "MESSAGE_FOLLOW_SYMBOL")
-;;            (rjs-handle-follow-symbol (buffer-substring-no-properties (point-min) (1- idx))))
-;;           ((string= type "MESSAGE_FIND_REFERENCES")
-;;            (rjs-handle-find-references (buffer-substring-no-properties (point-min) (1- idx))))
-;;           ((string= type "MESSAGE_DUMP")
-;;            (rjs-handle-dump (buffer-substring-no-properties (point-min) (1- idx))))
-;;           ((string= type "MESSAGE_CURSOR_INFO")
-;;            (rjs-handle-cursor-info (buffer-substring-no-properties (point-min) (1- idx))))
-;;           ((string= type "MESSAGE_FIND_SYMBOLS")
-;;            (rjs-handle-find-symbols (buffer-substring-no-properties (point-min) (1- idx))))
-;;           ((string= type "MESSAGE_LIST_SYMBOLS")
-;;            (rjs-handle-list-symbols (buffer-substring-no-properties (point-min) (1- idx))))
-;;           (t (message "Unhandled type %s" type)))))))
+      (while (and (goto-char (point-min))
+                  (search-forward "\n" (point-max) t))
+        (let* ((pos (1- (point)))
+               (data (and (> (1- pos) (point-min))
+                          (save-restriction
+                            (narrow-to-region (point-min) pos)
+                            (save-excursion
+                              (goto-char (point-min))
+                              (if (looking-at "(")
+                                  (condition-case nil
+                                      (eval (read (current-buffer)))
+                                    (error
+                                     (message "****** Got Parse Error ******")
+                                     (setq rjsd-filter-errors
+                                           (append rjsd-filter-errors
+                                                   (list (buffer-substring-no-properties (point-min) (point-max)))))))
+                                (message "RJS Output: [%s]" (buffer-substring-no-properties (point-min) (point-max)))
+                                nil))))))
+          (cond ((not (listp data)))
+                ((eq (car data) 'follow-symbol)
+                 (message "got follow-symbol"))
+                (t))
+          (forward-char 1)
+          (delete-region (point-min) (point)))))))
 
 (defun* rjs-invoke (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
   (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
@@ -318,7 +307,8 @@
 
     (unless (and rjs-process (eq (process-status rjs-process) 'run))
       (let ((exec (rjs-executable-find "rjsd")) proc
-            (args (list "--silent")))
+            (args (list ;; "--silent"
+                        "-o" "elisp")))
         (if (not exec)
             (if (not noerror)
                 (error "Can't find rjsd"))
