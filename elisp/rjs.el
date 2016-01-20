@@ -256,7 +256,7 @@
 (defun rjs-handle-xml (doc)
   (cond ((eq (caar doc) 'follow-symbol)
          (rjs-goto-location :location (nth 2 (car doc))))
-         ;; (message "got follow-symbol"))
+        ;; (message "got follow-symbol"))
         (t (message "nothing"))))
 
 (defconst rjs-xml-regexps
@@ -268,45 +268,45 @@
 (defun rjsd-filter (process output)
   ;; Collect the xml diagnostics into "*RJS Raw*" until a closing tag is found
   (with-current-buffer (get-buffer-create "*RJS Raw*")
-      (goto-char (point-max))
-      (let ((matchrx rjs-xml-regexps)
-            endpos)
-        (insert output)
-        ;; only try to process xml diagnostics if we detect an end condition
-        (when (string-match (rx "</") output)
-          (goto-char (point-min))
-          (while (search-forward-regexp matchrx (point-max) t)
-            (setq endpos (match-end 0))
-            ;; narrow to one xml result (incase multiple results come in together)
-            ;; (narrow-to-region (point-min) endpos)
-            ;; trim any whitespace from the beginning of the region
-            ;; otherwise `libxml-parse-xml-region' might fail
-            (rjs-trim-whitespace)
-            (rjs-handle-xml (xml-parse-region (point-min) endpos))
-            (delete-region (point-min) endpos))))))
-            ;; (widen))))))
+    (goto-char (point-max))
+    (let ((matchrx rjs-xml-regexps)
+          endpos)
+      (insert output)
+      ;; only try to process xml diagnostics if we detect an end condition
+      (when (string-match (rx "</") output)
+        (goto-char (point-min))
+        (while (search-forward-regexp matchrx (point-max) t)
+          (setq endpos (match-end 0))
+          ;; narrow to one xml result (incase multiple results come in together)
+          ;; (narrow-to-region (point-min) endpos)
+          ;; trim any whitespace from the beginning of the region
+          ;; otherwise `libxml-parse-xml-region' might fail
+          (rjs-trim-whitespace)
+          (rjs-handle-xml (xml-parse-region (point-min) endpos))
+          (delete-region (point-min) endpos))))))
+;; (widen))))))
 
-  ;; (with-current-buffer (process-buffer process)
-  ;;   (goto-char (point-max))
-  ;;   (insert string)
-  ;;   (message "got string [%s]" string)))
-    ;; (let* ((idx (re-search-backward "@END@\\([^@]+\\)@" nil t))
-    ;;        (type (match-string-no-properties 1)))
-    ;;   (when (and idx type)
-    ;;     (cond ((string= type "MESSAGE_COMPILE") t)
-    ;;           ((string= type "MESSAGE_FOLLOW_SYMBOL")
-    ;;            (rjs-handle-follow-symbol (buffer-substring-no-properties (point-min) (1- idx))))
-    ;;           ((string= type "MESSAGE_FIND_REFERENCES")
-    ;;            (rjs-handle-find-references (buffer-substring-no-properties (point-min) (1- idx))))
-    ;;           ((string= type "MESSAGE_DUMP")
-    ;;            (rjs-handle-dump (buffer-substring-no-properties (point-min) (1- idx))))
-    ;;           ((string= type "MESSAGE_CURSOR_INFO")
-    ;;            (rjs-handle-cursor-info (buffer-substring-no-properties (point-min) (1- idx))))
-    ;;           ((string= type "MESSAGE_FIND_SYMBOLS")
-    ;;            (rjs-handle-find-symbols (buffer-substring-no-properties (point-min) (1- idx))))
-    ;;           ((string= type "MESSAGE_LIST_SYMBOLS")
-    ;;            (rjs-handle-list-symbols (buffer-substring-no-properties (point-min) (1- idx))))
-    ;;           (t (message "Unhandled type %s" type)))))))
+;; (with-current-buffer (process-buffer process)
+;;   (goto-char (point-max))
+;;   (insert string)
+;;   (message "got string [%s]" string)))
+;; (let* ((idx (re-search-backward "@END@\\([^@]+\\)@" nil t))
+;;        (type (match-string-no-properties 1)))
+;;   (when (and idx type)
+;;     (cond ((string= type "MESSAGE_COMPILE") t)
+;;           ((string= type "MESSAGE_FOLLOW_SYMBOL")
+;;            (rjs-handle-follow-symbol (buffer-substring-no-properties (point-min) (1- idx))))
+;;           ((string= type "MESSAGE_FIND_REFERENCES")
+;;            (rjs-handle-find-references (buffer-substring-no-properties (point-min) (1- idx))))
+;;           ((string= type "MESSAGE_DUMP")
+;;            (rjs-handle-dump (buffer-substring-no-properties (point-min) (1- idx))))
+;;           ((string= type "MESSAGE_CURSOR_INFO")
+;;            (rjs-handle-cursor-info (buffer-substring-no-properties (point-min) (1- idx))))
+;;           ((string= type "MESSAGE_FIND_SYMBOLS")
+;;            (rjs-handle-find-symbols (buffer-substring-no-properties (point-min) (1- idx))))
+;;           ((string= type "MESSAGE_LIST_SYMBOLS")
+;;            (rjs-handle-list-symbols (buffer-substring-no-properties (point-min) (1- idx))))
+;;           (t (message "Unhandled type %s" type)))))))
 
 (defun* rjs-invoke (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
   (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
@@ -353,10 +353,10 @@
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
     (rjs-invoke "-f" loc)))
-    ;; (with-temp-buffer
-    ;;   (when (rjs-invoke "-f" loc)
-    ;;     (rjs-location-stack-push loc)
-    ;;     (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
+;; (with-temp-buffer
+;;   (when (rjs-invoke "-f" loc)
+;;     (rjs-location-stack-push loc)
+;;     (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
 
 (defun rjs-find-references-at-point ()
   (interactive)
@@ -364,9 +364,9 @@
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
     (rjs-invoke "-r" loc)))
-    ;; (with-current-buffer (rjs-get-buffer)
-    ;;   (if (rjs-invoke "-r" loc)
-    ;;       (rjs-handle-results-buffer)))))
+;; (with-current-buffer (rjs-get-buffer)
+;;   (if (rjs-invoke "-r" loc)
+;;       (rjs-handle-results-buffer)))))
 
 (defun rjs-cursor-info ()
   (interactive)
@@ -374,9 +374,9 @@
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
     (rjs-invoke "-u" loc)))
-    ;; (with-temp-buffer
-    ;;   (if (rjs-invoke "-u" loc)
-    ;;       (message "%s" (buffer-substring-no-properties (point-min) (point-max)))))))
+;; (with-temp-buffer
+;;   (if (rjs-invoke "-u" loc)
+;;       (message "%s" (buffer-substring-no-properties (point-min) (point-max)))))))
 
 (defvar rjs-is-js-file-function nil)
 (defun rjs-is-js-file (&optional file-or-buffer)
