@@ -320,7 +320,7 @@
     (unless buf
       (error "*RJS* Buffer is gone"))
     (rjs-log (concat (rjs-executable-find "rjsd") " " (combine-and-quote-strings arguments)))
-    (process-send-string rjs-process (combine-and-quote-strings arguments))))
+    (process-send-string rjs-process (concat (combine-and-quote-strings arguments) "\n"))))
 
 
 (defun* rjs-goto-location (&key location no-location-stack other-window)
