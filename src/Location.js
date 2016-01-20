@@ -8,15 +8,18 @@ function Location(file, start, end, rank)
     this.rank = rank || 0;
 }
 
-Location.prototype.toString = function() {
-    var ret = "";
-    if (this.file)
-        ret += "File: " + this.file + " ";
-    ret += "Start: " + this.start;
-    ret += " End: " + this.end;
-    if (this.rank)
-        ret += " Rank: " + this.rank;
-    return ret;
+Location.prototype = {
+    toString: function() {
+        var ret = "";
+        if (this.file)
+            ret += "File: " + this.file + " ";
+        ret += "Start: " + this.start;
+        ret += " End: " + this.end;
+        if (this.rank)
+            ret += " Rank: " + this.rank;
+        return ret;
+    },
+    get index() { return this.start; }
 };
 
-module.exports.Location = Location;
+module.exports = Location;

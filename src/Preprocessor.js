@@ -1,5 +1,7 @@
 /*global require, module */
 
+var SourceCode = require('./SourceCode');
+
 function preprocess(file) {
     var fs = require('fs');
     var path = require('path');
@@ -18,10 +20,7 @@ function preprocess(file) {
         // console.log("processing " + file);
         var src = load(file);
         var idx = -1, last = 0;
-        var ret = {
-            files: [],
-            code: ""
-        };
+        var ret = new SourceCode(file);
         function next() {
             while (true) {
                 idx = src.indexOf('// include "', idx + 1);
@@ -86,11 +85,7 @@ function resolveLocation(idx, files) {
     return undefined;
 }
 
-//var res = preprocess("Preprocessor.js");
-//console.log(resolveLocation(120, res.files));
-//console.log(res.files);
-// console.log(res.code);
 module.exports = {
     preprocess: preprocess,
-    resolveLocation: resolveLocation
+    SourceCode: SourceCode
 };
