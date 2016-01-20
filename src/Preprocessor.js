@@ -1,23 +1,27 @@
 /*global require, module */
 
 var SourceCode = require('./SourceCode');
+var log = require('./log');
 
 function preprocess(file) {
     var fs = require('fs');
     var path = require('path');
 
+    file = path.resolve(file);
+    var cwd = path.dirname(file);
+
     var fileCache = {};
-    function load(path) {
-        if (fileCache.hasOwnProperty(path))
-            return fileCache[path];
-        var contents = fs.readFileSync(path, { encoding: 'utf8' });
-        fileCache[path] = contents;
+    function load(p) {
+        if (fileCache.hasOwnProperty(p))
+            return fileCache[p];
+        var contents = fs.readFileSync(p, { encoding: 'utf8' });
+        fileCache[p] = contents;
         return contents;
     }
 
     function process(file) {
-        file = path.resolve(file);
-        // console.log("processing " + file);
+        file = path.resolve(cwd, file);
+        log.verboseLog("processing", file, cwd);
         var src = load(file);
         var idx = -1, last = 0;
         var ret = new SourceCode(file);
