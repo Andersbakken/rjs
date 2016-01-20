@@ -10,6 +10,7 @@ var ws = require('ws');
 var rjs = require('./rjs.js');
 var expandTile = require('expand-tilde');
 var indexer = require('./indexer.js');
+var preprocessor = require('./preprocessor.js');
 var parseArgs = require('minimist');
 var usageString = ('Usage:\n$0 ...options\n' +
                    '-v|--verbose\n' +
@@ -198,10 +199,12 @@ function processMessage(msg, chunked, sendFunc) {
         function index(output) {
             log('index', fileName);
             var start = new Date();
-            var source = safe.fs.readFileSync(fileName, { encoding:'utf8' });
+            var source;
             var indexTime = new Date();
-            if (!source) {
-                console.error('Couldn\'t open', fileName, 'for reading');
+            try {
+                source = preprocessor.preprocess(fileName);
+            } catch (err) {
+                console.error('Couldn\'t preprocess', fileName, 'for reading', err.toString());
                 if (output)
                     send({error: rjs.ERROR_READFAILURE});
                 return false;
@@ -209,7 +212,7 @@ function processMessage(msg, chunked, sendFunc) {
             if (output)
                 send({});
 
-            var ret = indexer.indexFile(source, fileName, args.verbose);
+            var ret = indexer.indexFile(source.code, fileName, args.verbose);
             if (!ret) {
                 console.error('Couldn\'t parse file', fileName);
                 return false;
@@ -219,6 +222,8 @@ function processMessage(msg, chunked, sendFunc) {
             verboseLog(ret);
             ret.indexTime = indexTime;
             db[fileName] = ret;
+            // ### need to resolve locations in ret to the various preprocessed files
+            console.log(JSON.stringify(ret, undefined, 4));
             return true;
         };
         if (index(true)) {

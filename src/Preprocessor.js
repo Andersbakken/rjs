@@ -1,4 +1,4 @@
-/*global require */
+/*global require, module */
 
 function preprocess(file) {
     var fs = require('fs');
@@ -6,7 +6,7 @@ function preprocess(file) {
     function load(path) {
         if (fileCache.hasOwnProperty(path))
             return fileCache[path];
-        var contents = fs.readFileSync(path) + "";
+        var contents = fs.readFileSync(path, { encoding: 'utf8' });
         fileCache[path] = contents;
         return contents;
     }
@@ -83,7 +83,11 @@ function resolveLocation(idx, files) {
     return undefined;
 }
 
-var res = preprocess("Preprocessor.js");
-console.log(resolveLocation(120, res.files));
-console.log(res.files);
+//var res = preprocess("Preprocessor.js");
+//console.log(resolveLocation(120, res.files));
+//console.log(res.files);
 // console.log(res.code);
+module.exports = {
+    preprocess: preprocess,
+    resolveLocation: resolveLocation
+};
