@@ -38,9 +38,11 @@ function preprocess(file) {
         function next() {
             function findInclude(index, best) {
                 while (true) {
-                    index = src.indexOf('// include "', index + 1);
-                    if (index === -1 || best >= 0 && index > best)
+                    index = src.indexOf('// #include "', index + 1);
+                    if (index === -1 || (best >= 0 && index > best)) {
                         return undefined;
+                    }
+
                     if (index && src[index - 1] != '\n') {
                         continue;
                     }
@@ -50,11 +52,11 @@ function preprocess(file) {
                         return undefined;
                     }
 
-                    var quote = src.indexOf('"', index + 12);
+                    var quote = src.indexOf('"', index + 13);
                     if (quote >= newline) {
                         continue;
                     }
-                    var includedFile = src.substring(index + 12, quote);
+                    var includedFile = src.substring(index + 13, quote);
                     return { file: includedFile, index: index, next: newline + 1 };
                 }
             }
