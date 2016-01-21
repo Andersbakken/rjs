@@ -16,6 +16,7 @@ var usageString = ('Usage:\n$0 ...options\n' +
                    '-D|--data-dir [default: ' + defaultDataDir + ' ]\n' +
                    '-q|--quit-after [seconds]\n' +
                    '-o|--format [raw (default), elisp, xml]\n' +
+                   '-S|--server\n' +
                    '-p|--port [default: ' + rjs.defaultPort + ' ]\n');
 var log = require('./log');
 var parseArgsOptions = {
@@ -28,7 +29,8 @@ var parseArgsOptions = {
         C: 'clear',
         D: 'data-dir',
         q: 'quit-after',
-        o: 'format'
+        o: 'format',
+        S: 'server'
     },
     default: {
         p: rjs.defaultPort,
@@ -82,13 +84,14 @@ if (args.help) {
     exit(0, '', true);
 }
 
+function logToFile(str) {
+    if (str[str.length - 1] != '\n')
+        str += '\n';
+    fs.appendFile(args.logfile, str, function (err) {});
+}
+
 if (args.logfile) {
-    function logFile(str) {
-        if (str[str.length - 1] != '\n')
-            str += '\n';
-        fs.appendFile(args.logfile, str, function (err) {});
-    }
-    log.addSink(new log.Sink(logFile, 2));
+    log.addSink(new log.Sink(logToFile, 2));
 }
 
 if (args['quit-after'] > 0) {

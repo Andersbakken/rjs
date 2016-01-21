@@ -29,13 +29,34 @@ module.exports = (function() {
         MESSAGE_FIND_REFERENCES: 'find-references',
         MESSAGE_DUMP: 'dump',
         MESSAGE_CURSOR_INFO: 'cursor-info',
-        MESSAGE_FIND_SYMBOLS: 'find-symbols',
+        MESSAGE_FIND_SYMBOLS: 'find-symbol',
         MESSAGE_LIST_SYMBOLS: 'list-symbols',
         MESSAGE_LOG: 'log',
         MESSAGE_ERROR: 'error',
         MESSAGE_UNINDEX: 'unindex',
 
         defaultPort: defPort,
+
+        context: function context(loc, fileCache) {
+            var contents;
+            if (fileCache)
+                contents = fileCache[loc.file];
+
+            if (!contents) {
+                contents = safe.fs.readFileSync(loc.file, { encoding: 'utf8' });
+                if (contents && fileCache) {
+                    fileCache[loc.file] = contents;
+                }
+            }
+            if (contents && contents.length > loc.offset) {
+                var prevNewLine = contents.lastIndexOf('\n', loc.offset) + 1;
+                var nextNewLine = contents.indexOf('\n', loc.offset);
+                if (nextNewLine == -1)
+                    nextNewLine = contents.length;
+                return contents.substring(prevNewLine, nextNewLine - 1);
+            }
+            return undefined;
+        },
 
         printLocation: function printLocation(options) {
             var loc = options.location;
@@ -48,20 +69,9 @@ module.exports = (function() {
             // console.log('options', options);
             var out = (header || '') + loc.file + ',' + loc.offset;
             if (showContext) {
-                var contents = fileCache[loc.file];
-                if (!contents) {
-                    contents = safe.fs.readFileSync(loc.file, { encoding: 'utf8' });
-                    if (contents) {
-                        fileCache[loc.file] = contents;
-                    }
-                }
-                if (contents && contents.length > loc.offset) {
-                    var prevNewLine = contents.lastIndexOf('\n', loc.offset) + 1;
-                    var nextNewLine = contents.indexOf('\n', loc.offset);
-                    if (nextNewLine == -1)
-                        nextNewLine = contents.length;
-                    out += '\t' + contents.substring(prevNewLine, nextNewLine - 1);
-                }
+                var context = this.context(loc, options.fileCache);
+                if (context)
+                    out += '\t' + context;
             }
             return out;
         },
@@ -145,8 +155,8 @@ module.exports = (function() {
                     case 'list-symbols':
                         cmd = { type: rjs.MESSAGE_LIST_SYMBOLS, file: file, prefix: typeof value === 'string' ? value : undefined };
                         break;
-                    case 'find-symbols':
-                        cmd = { type: rjs.MESSAGE_FIND_SYMBOLS, file: file, symbolName: value };
+                    case 'find-symbol':
+                        cmd = { type: rjs.MESSAGE_FIND_SYMBOL, file: file, symbolName: value };
                         break;
                     default:
                         console.error('Invalid command:', arg);
@@ -172,7 +182,7 @@ module.exports = (function() {
             add('dump-file');
             add('cursor-info');
             add('dump');
-            add('find-symbols');
+            add('find-symbol');
             add('list-symbols');
             add('log');
             return commands;
@@ -190,7 +200,7 @@ module.exports = (function() {
                             '  -g|--log\n' +
                             '  -h|--help\n' +
                             '  -v|--verbose\n' +
-                            '  -F|--find-symbols [symbolName]\n' +
+                            '  -F|--find-symbol [symbolName]\n' +
                             '  -S|--list-symbols [optional prefix]\n' +
                             '  -P|--file [file]\n' +
                             '  -p|--port [port] (default ' + defPort + ')\n'),
@@ -208,7 +218,7 @@ module.exports = (function() {
                 v: 'verbose',
                 p: 'port',
                 g: 'log',
-                F: 'find-symbols',
+                F: 'find-symbol',
                 S: 'list-symbols',
                 P: 'file'
             },

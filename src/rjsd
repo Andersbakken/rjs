@@ -19,36 +19,112 @@ function formatXML(tag, str)
     return '<' + tag + '>' + str + '</' + tag + '>';
 }
 
-function formatElisp(type, str)
-{
-    return "(cons '" + type + ' . "' + rjs.elispEscape(str) + '")';;
-}
-
 function formatRaw(type, str)
 {
     return type + ': ' + str;
 }
 
-var format;
+function writeElisp(response)
+{
+    var type = response.text;
+    function send(str, formatted)
+    {
+        var msg = "(cons '" + type + ' ';
+        if (formatted) {
+            msg += str;
+        } else {
+            msg += '"' + rjs.elispEscape(str) + '"';
+        }
+        msg += ')';
+        log.writeResponse(msg);
+    }
+
+    log.verboseLog('processing message', response);
+    if (response.type == rjs.MESSAGE_ERROR) {
+        send(response.text);
+    } else if (response.target) {
+        type = 'location';
+        send(rjs.printLocation({ location: response.target }));
+    } else if (response.references || response.locations) {
+        var locs = response.references || response.locations;
+        if (locs.length == 1) {
+            type = 'location';
+            send(rjs.printLocation({ location: locs[0] }));
+            return;
+        }
+
+        type = 'locations';
+        var cdr = "(list";
+        var fileCache = {};
+        locs.forEach(function(loc) {
+            var cons = ' (cons "' + rjs.elispEscape(rjs.printLocation({location: loc})) + '" ';
+            var ctx = rjs.context(loc, fileCache);
+            if (ctx) {
+                cons += '"' + rjs.elispEscape(ctx) + '")';
+            } else {
+                cons += 'nil)';
+            }
+            cdr += cons;
+        });
+        cdr += ')';
+        send(cdr, true);
+    } else if (response.hasOwnProperty('dump')) {
+        send(response.dump);
+    } else if (response.cursorInfo) {
+        // write(function() {
+        //     var ret = [ rjs.printLocation({ location: response.cursorInfo.location }) ];
+        //     ret.push('Name: ' + response.cursorInfo.name + (response.cursorInfo.definition ? ' Definition' : ' Reference'));
+        //     if (response.cursorInfo.references && response.cursorInfo.references.length) {
+        //         var fileCache = {};
+        //         if (response.cursorInfo.target) {
+        //             ret.push('Target: ' + rjs.printLocation({location: response.cursorInfo.target, header: '  ',
+        //                                                      fileCache: fileCache, showContext: true }));
+        //         }
+        //         if (response.cursorInfo.references.length > 0) {
+        //             ret.push('References:');
+        //             response.cursorInfo.references.forEach(function(loc) {
+        //                 ret.push(rjs.printLocation({location: loc, header: '  ',
+        //                                             fileCache: fileCache, showContext: true }));
+        //             });
+        //         }
+        //     }
+        //     return ret.join('\n');
+        // });
+    } else if (response.symbolNames) {
+        var symNames = '(list' + response.symbolNames.map(function(name) {
+            return ' "' + rjs.elispEscape(name) + '"';
+        }) + ')';
+        send(symNames);
+    }
+}
+function writeRaw(response)
+{
+    log.writeResponse(JSON.stringify(response));
+}
+
+function writeXML(response)
+{
+    // ### implement me?
+}
+
+var write;
 switch (Args.args.format) {
 case 'elisp':
-    format = formatElisp;
+    write = writeElisp;
     break;
 case 'raw':
-    format = formatRaw;
+    write = writeRaw;
     break;
 case 'xml':
-    format = formatXML;
+    write = writeXML;
     break;
 }
 
 var pendingStdIn = '';
 process.stdin.on('readable', function() {
     var read = process.stdin.read();
-    console.log('Got stdin', read);
     if (!read)
         return;
-    console.log("GOT SOME STDIN", read);
     pendingStdIn += read;
     var lines = pendingStdIn.split('\n');
     if (lines.length > 1) {
@@ -59,7 +135,7 @@ process.stdin.on('readable', function() {
             if (lines[i][0] === '-') {
                 var parsed = Args.parseArgs(lines[i].split(/ +/), rjs.clientParseArgsOptions);
                 if (parsed.help) {
-                    log.writeResponse(format('help', rjs.clientUsageString));
+                    log.writeResponse(rjs.clientUsageString);
                     continue;
                 }
                 commands = rjs.createCommands(parsed);
@@ -67,72 +143,14 @@ process.stdin.on('readable', function() {
                 commands = [ safe.JSON.parse(lines[i]) ];
             }
             if (!commands.length) {
-                log.writeResponse(format('error', 'Unknown command: ' + lines[i]));
+                log.writeResponse('error: Unknown command: ' + lines[i]);
                 continue;
             }
             log.verboseLog(commands);
 
             commands.forEach(function(msg) {
                 daemon.processMessage(msg, function(response) {
-                    log.verboseLog('processing message', msg);
-                    function write(funcOrString) {
-                        if (!funcOrString)
-                            return;
-                        var out;
-                        if (funcOrString instanceof Function) {
-                            out = funcOrString();
-                        } else {
-                            out = funcOrString;
-                        }
-                        // if (out)
-                        //     out += '\n';
-                        log.writeResponse(formatElisp(msg.type, out));
-                    }
-                    if (response.type == rjs.MESSAGE_ERROR) {
-                        write(response.text);
-                    } else if (response.target) {
-                        write(rjs.printLocation({ location: response.target }));
-                    } else if (response.references || response.locations) {
-                        write(function() {
-                            var fileCache = {};
-                            var locs = response.references || response.locations;
-                            var ret = [];
-                            locs.forEach(function(loc) {
-                                ret.push(rjs.printLocation({ location: loc, showContext: true, fileCache: fileCache }));
-                            });
-                            return ret.join('\n');
-                        });
-                    } else if (response.hasOwnProperty('dump')) {
-                        write(response.dump);
-                    } else if (response.cursorInfo) {
-                        write(function() {
-                            var ret = [ rjs.printLocation({ location: response.cursorInfo.location }) ];
-                            ret.push('Name: ' + response.cursorInfo.name + (response.cursorInfo.definition ? ' Definition' : ' Reference'));
-                            if (response.cursorInfo.references && response.cursorInfo.references.length) {
-                                var fileCache = {};
-                                if (response.cursorInfo.target) {
-                                    ret.push('Target: ' + rjs.printLocation({location: response.cursorInfo.target, header: '  ',
-                                                                             fileCache: fileCache, showContext: true }));
-                                }
-                                if (response.cursorInfo.references.length > 0) {
-                                    ret.push('References:');
-                                    response.cursorInfo.references.forEach(function(loc) {
-                                        ret.push(rjs.printLocation({location: loc, header: '  ',
-                                                                    fileCache: fileCache, showContext: true }));
-                                    });
-                                }
-                            }
-                            return ret.join('\n');
-                        });
-                    } else if (response.symbolNames) {
-                        write(response.symbolNames.join('\n'));
-                    } else if (response.type == rjs.MESSAGE_INDEX) {
-                        log.verboseLog('Got index', response);
-                    } else if (response.error != rjs.ERROR_OK) {
-                        log.verboseLog('Got error', response);
-                    } else {
-                        console.error('Unknown response', response);
-                    }
+                    write(response);
                 });
             });
         }

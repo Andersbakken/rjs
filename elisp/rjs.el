@@ -48,7 +48,8 @@
 (defface rjs-context nil "Context" :group 'rjs)
 (defvar rjs-path-face 'rjs-path "Path part")
 (defvar rjs-context-face 'rjs-context "Context part")
-(defconst rjs-buffer-name "*RJS Process Buffer*")
+(defconst rjs-buffer-name "*RJS*")
+(defconst rjs-process-buffer-name "*RJS Process*")
 (defvar rjs-buffer-bookmarks 0)
 
 (defcustom rjs-enabled t
@@ -101,10 +102,11 @@
      (2 font-lock-function-name-face))))
 
 (defun rjs-get-buffer (&optional name)
-  (unless name (setq name rjs-buffer-name))
-  (if (get-buffer name)
-      (kill-buffer name))
-  (generate-new-buffer name))
+  (let ((buf (get-buffer-create (or name rjs-buffer-name))))
+    (with-current-buffer buf
+      (setq buffer-read-only nil)
+      (erase-buffer)
+      buf)))
 
 ;;;###autoload
 (defun rjs-bury-or-delete ()
@@ -142,6 +144,18 @@
   (goto-char (point-min))
   (setq buffer-read-only t))
 
+(defun rjs-current-token ()
+  (save-excursion
+    (when (looking-at "[0-9A-Za-z_$]")
+      (while (and (> (point) (point-min)) (looking-at "[0-9A-Za-z_$]"))
+        (backward-char))
+      (when (not (looking-at "[0-9A-Za-z_$]"))
+        (forward-char))
+      (let ((start (point)))
+        (while (looking-at "[0-9A-Za-z_$]")
+          (forward-char))
+        (buffer-substring-no-properties start (point))))))
+
 (defun rjs-init-bookmarks()
   (let ((buf (current-buffer)))
     (goto-char (point-min))
@@ -166,23 +180,27 @@
     (decf rjs-buffer-bookmarks)))
 
 ;;;###autoload
-(defun rjs-next-match () (interactive) (rjs-next-prev-match t))
+(defun rjs-next-match ()
+  (interactive)
+  (rjs-next-prev-match 'next))
 ;;;###autoload
-(defun rjs-previous-match () (interactive) (rjs-next-prev-match nil))
+(defun rjs-previous-match ()
+  (interactive)
+  (rjs-next-prev-match 'prev))
 
-(defun rjs-next-prev-suitable-match (next)
+(defun rjs-next-prev-suitable-match (direction)
   (save-excursion
-    (if next
+    (if (eq direction 'next)
         (goto-char (point-at-bol 2))
       (goto-char (point-at-bol 0)))
     (beginning-of-line)
     (when (looking-at "$")
-      (when next
+      (when (eq direction 'next)
         (goto-char (point-min))
         (beginning-of-line)))
     (point)))
 
-(defun rjs-next-prev-match (next)
+(defun rjs-next-prev-match (direction)
   (if (get-buffer rjs-buffer-name)
       (let (target
             (win (get-buffer-window rjs-buffer-name)))
@@ -190,18 +208,18 @@
             (select-window win))
         (set-buffer rjs-buffer-name)
         (when (> (count-lines (point-max) (point-min)) 1)
-          (cond ((and (= (point-at-bol) (point-min)) (not next))
+          (cond ((and (= (point-at-bol) (point-min)) (eq direction 'prev))
                  (goto-char (point-max))
                  (beginning-of-line)
                  (while (looking-at "$")
                    (goto-char (1- (point))))
                  (message "%s Wrapped" rjs-buffer-name))
-                ((and (= (point-at-eol) (point-max)) next)
+                ((and (= (point-at-eol) (point-max)) (eq direction 'next))
                  (goto-char (point-min))
                  (setq target (point-min))
                  (message "%s Wrapped" rjs-buffer-name))
                 (t
-                 (goto-char (rjs-next-prev-suitable-match next))))
+                 (goto-char (rjs-next-prev-suitable-match direction))))
           (beginning-of-line)
           (if win (rjs-select-other-window)
             (rjs-select))))))
@@ -219,8 +237,8 @@
         (if (keywordp head) (rjs-remove-keyword-params (cdr tail))
           (cons head (rjs-remove-keyword-params tail))))))
 
-(defun rjs-client-is-running()
-  (and rjs-process (eq (process-state rjs-process) 'run)))
+(defun rjs-is-running()
+  (and rjs-process (eq (process-status rjs-process) 'run)))
 
 (defun rjs-clear-client-buffer ()
   (interactive)
@@ -229,82 +247,75 @@
         (with-current-buffer buf
           (erase-buffer)))))
 
-(defun rjs-handle-follow-symbol (text)
-  (message "rjs-handle-follow-symbol: [%s]" text))
+(defun rjs-handle-results (locations)
+  (let ((buf (rjs-buffer)))
+    (switch-to-buffer buf)
+    (mapc (lambda (item)
+            (unless (= (point) (point-min))
+              (insert "\n"))
+            (if (cdr item)
+                (insert (car item) "\t" (cdr item))
+              (insert car item))) locations)
+    (rjs-init-bookmarks)
+    (rjs-mode)
+    (when rjs-jump-to-first-match
+      (rjs-select-other-window))))
 
-(defun rjs-handle-find-references (text)
-  (message "rjs-handle-find-references: [%s]" text))
+(defun rjsd-handle-message (msg)
+  (cond ((null msg))
+        ((eq (car msg) 'notfound)
+         (message "RJS: No symbol found"))
+        ((eq (car msg) 'notindexed)
+         (message "RJS: %s is not indexed" (cdr msg)))
+        ((eq (car msg) 'location)
+         (rjs-location-stack-push)
+         (rjs-goto-location :location (cdr msg)))
+        ((eq (car msg) 'locations)
+         (rjs-handle-results (cdr msg)))
+        (t)))
 
-(defun rjs-handle-dump (text)
-  (message "rjs-handle-dump: [%s]" text))
-
-(defun rjs-handle-cursor-info (text)
-  (message "rjs-handle-cursor-info: [%s]" text))
-
-(defun rjs-handle-find-symbols (text)
-  (message "rjs-handle-find-symbols: [%s]" text))
-
-(defun rjs-handle-list-symbols (text)
-  (message "rjs-handle-list-symbols: [%s]" text))
-
-(defun rjs-trim-whitespace ()
-  "Trim initial whitespace from the *RJS Raw* buffer (so libxml parsing doesn't fail)"
-  (goto-char (point-min))
-  (if (search-forward-regexp "\\`\n+\\|^\\s-+\\|\\s-+$\\|\n+\\'" (point-max) t)
-      (replace-match "" t t)))
-
-(defun rjs-handle-xml (doc)
-  (cond ((eq (caar doc) 'follow-symbol)
-         (rjs-goto-location :location (nth 2 (car doc))))
-        ;; (message "got follow-symbol"))
-        (t (message "nothing"))))
-
-(defconst rjs-xml-regexps
-  (regexp-opt '("</follow-symbol>"
-                ;; "</progress>"
-                ;; "</completions>"
-                )))
+(defun rjsd-parse-messages ()
+  (let ((messages))
+    (while (and (goto-char (point-min))
+                (search-forward "\n" (point-max) t))
+      (let* ((pos (1- (point)))
+             (data (and (> (1- pos) (point-min))
+                        (save-restriction
+                          (narrow-to-region (point-min) pos)
+                          (save-excursion
+                            (goto-char (point-min))
+                            (if (looking-at "(")
+                                (condition-case nil
+                                    (eval (read (current-buffer)))
+                                  (error
+                                   (message "****** Got Parse Error ******")
+                                   (setq rjsd-filter-errors
+                                         (append rjsd-filter-errors
+                                                 (list (buffer-substring-no-properties (point-min) (point-max)))))))
+                              (message "RJS Output: [%s]" (buffer-substring-no-properties (point-min) (point-max)))
+                              nil))))))
+        (forward-char 1)
+        (delete-region (point-min) (point))
+        (setq messages (append messages (list data)))))
+    (mapc 'rjsd-handle-message messages)))
 
 (defvar rjsd-filter-errors nil)
 (defun rjsd-filter (process output)
-  ;; Collect the xml diagnostics into "*RJS Raw*" until a closing tag is found
   (save-excursion
-    (with-current-buffer (get-buffer-create "*RJS Raw*")
+    (let ((buffer (process-buffer process))
+          (old (current-buffer)))
+      (set-buffer buffer)
       (goto-char (point-max))
       (insert output)
-      (while (and (goto-char (point-min))
-                  (search-forward "\n" (point-max) t))
-        (let* ((pos (1- (point)))
-               (data (and (> (1- pos) (point-min))
-                          (save-restriction
-                            (narrow-to-region (point-min) pos)
-                            (save-excursion
-                              (goto-char (point-min))
-                              (if (looking-at "(")
-                                  (condition-case nil
-                                      (eval (read (current-buffer)))
-                                    (error
-                                     (message "****** Got Parse Error ******")
-                                     (setq rjsd-filter-errors
-                                           (append rjsd-filter-errors
-                                                   (list (buffer-substring-no-properties (point-min) (point-max)))))))
-                                (message "RJS Output: [%s]" (buffer-substring-no-properties (point-min) (point-max)))
-                                nil))))))
-          (cond ((not (listp data)))
-                ((eq (car data) 'follow-symbol)
-                 (message "got follow-symbol"))
-                (t))
-          (forward-char 1)
-          (delete-region (point-min) (point)))))))
+      
+/home/abakken/temp/rjstest/a.js,22	++a
+/home/abakken/temp/rjstest/a.js,27	++a(rjsd-parse-messages))))
 
 (defun* rjs-invoke (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
   (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
   (setq arguments (rjs-remove-keyword-params arguments))
 
-  (let ((buf (get-buffer-create rjs-buffer-name)))
-    (with-current-buffer buf
-      (erase-buffer))
-
+  (let ((buf (rjs-get-buffer rjs-process-buffer-name)))
     (unless (and rjs-process (eq (process-status rjs-process) 'run))
       (let ((exec (rjs-executable-find "rjsd")) proc
             (args (list ;; "--silent"
@@ -315,13 +326,25 @@
           (if (stringp rjs-log-file)
               (setq args (append args (list "-l" rjs-log-file))))
           (rjs-log (concat exec " " (combine-and-quote-strings args)))
-          (setq rjs-process (apply #'start-process rjs-buffer-name buf exec args))
+          (setq rjs-process (apply #'start-process rjs-process-buffer-name buf exec args))
           (set-process-filter rjs-process (function rjsd-filter)))))
     (unless buf
-      (error "*RJS* Buffer is gone"))
+      (error (format "%s buffer is gone" rjs-process-buffer-name)))
     (rjs-log (concat (rjs-executable-find "rjsd") " " (combine-and-quote-strings arguments)))
     (process-send-string rjs-process (concat (combine-and-quote-strings arguments) "\n"))))
 
+(defun rjs-goto-line-col (line column)
+  (let ((old (point)))
+    (push-mark nil t)
+    (goto-char (point-min))
+    (condition-case nil
+        (progn
+          (forward-line (1- line))
+          (forward-char (1- column))
+          t)
+      (error
+       (goto-char old)
+       nil))))
 
 (defun* rjs-goto-location (&key location no-location-stack other-window)
   (when (and (> (length location) 0)
@@ -343,10 +366,6 @@
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
     (rjs-invoke "-f" loc)))
-;; (with-temp-buffer
-;;   (when (rjs-invoke "-f" loc)
-;;     (rjs-location-stack-push loc)
-;;     (rjs-goto-location :location (buffer-substring-no-properties (point-at-bol) (point-at-eol)))))))
 
 (defun rjs-find-references-at-point ()
   (interactive)
@@ -354,9 +373,24 @@
     (unless loc
       (error "RJS: Buffer is not visiting a file"))
     (rjs-invoke "-r" loc)))
-;; (with-current-buffer (rjs-get-buffer)
-;;   (if (rjs-invoke "-r" loc)
-;;       (rjs-handle-results-buffer)))))
+
+(defvar rjs-symbol-name-history nil)
+(defun rjs-find-symbol ()
+  (interactive)
+  (let* ((token (if mark-active
+                  (buffer-substring-no-properties (region-beginning) (region-end))
+                (rjs-current-token)))
+         (prompt (if token
+                     (format "Symbol (default: %s): " token)
+                   "Symbol: "))
+         (input (if (fboundp 'completing-read-default)
+                    (completing-read-default prompt (function rjs-symbolname-complete) nil nil nil 'rjs-symbol-name-history)
+                  (completing-read prompt (function rjs-symbolname-complete) nil nil nil 'rjs-symbol-name-history)))
+         (setq rtags-symbol-history (rtags-remove-last-if-duplicated rtags-symbol-history))
+         (when (equal input "")
+           (setq input token))
+         (unless (equal input "")
+           (rjs-invoke "-F" input)))))
 
 (defun rjs-cursor-info ()
   (interactive)
@@ -390,7 +424,7 @@
                        ((bufferp buffer-or-name) (buffer-file-name buffer-or-name))
                        (t buffer-file-name))))
     (if (and bufname (rjs-is-js-file bufname))
-        (rjs-invoke "--compile" bufname :noerror t))))
+        (rjs-invoke "--index" bufname :noerror t))))
 
 (defun rjs-buffer-is-multibyte ()
   (string-match "\\butf\\b" (symbol-name buffer-file-coding-system)))

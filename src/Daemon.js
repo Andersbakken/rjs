@@ -42,7 +42,7 @@ function Daemon()
 {
     var that = this;
     that.db = {};
-    if (Args.args.port) {
+    if (Args.args.port && Args.args.server) {
         that.server = new ws.Server({ port: Args.args.port });
         that.server.on('error', function(err) {
             log.log('Got error', err);
@@ -198,18 +198,18 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
     case rjs.MESSAGE_FIND_REFERENCES:
     case rjs.MESSAGE_CURSOR_INFO:
         if (!msg.location || !msg.location.file || !msg.location.offset) {
-            log.log("rjs.ERROR_INVALID_LOCATION");
+            log.verboseLog("rjs.ERROR_INVALID_LOCATION");
             send({error: rjs.ERROR_INVALID_LOCATION});
             break;
         }
         if (!that.db[msg.location.file]) {
-            log.log("rjs.ERROR_FILE_NOT_INDEXED");
+            log.verboseLog("rjs.ERROR_FILE_NOT_INDEXED");
             send({error: rjs.ERROR_FILE_NOT_INDEXED});
             break;
         }
         var result = that.db[msg.location.file].findSymbol(msg.location.offset);
         if (!result) {
-            log.log("rjs.ERROR_SYMBOL_NOT_FOUND");
+            log.verboseLog("rjs.ERROR_SYMBOL_NOT_FOUND");
             send({error: rjs.ERROR_SYMBOL_NOT_FOUND});
             break;
         }
@@ -244,7 +244,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
         }
         break;
 
-    case rjs.MESSAGE_FIND_SYMBOLS:
+    case rjs.MESSAGE_FIND_SYMBOL:
         if (!msg.symbolName) {
             send({error: rjs.ERROR_MISSING_SYMBOLNAME});
             break;
