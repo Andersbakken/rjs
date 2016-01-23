@@ -54,6 +54,13 @@ SourceCode.prototype = {
             }
         }
         return ret;
+    },
+    contains: function(file) {
+        for (var i=0; i<this.files.length; ++i) {
+            if (file === this.files[i].file)
+                return true;
+        }
+        return false;
     }
 };
 
