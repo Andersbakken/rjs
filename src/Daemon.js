@@ -118,38 +118,42 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
             }
         }
         function onFileModified(file) {
-            var cached = that.db[file];
+            // var cached = that.db[file];
             log.verboseLog(file, 'was modified');
-            if (!cached) {
-                FileSystemWatcher.unwatch(file, onFileModified);
-                return;
-            }
+            // if (!cached) {
+            //     FileSystemWatcher.unwatch(file, onFileModified);
+            //     return;
+            // }
             var stat = safe.fs.statSync(file);
             if (!stat) {
                 FileSystemWatcher.unwatch(file, onFileModified);
-                return;
             }
 
-            log.verboseLog(file, 'comparing mtime', stat.mtime, cached.indexTime);
-            if (stat.mtime > cached.indexTime) {
-                index(true);
+            for (var f in that.db) {
+                if (f.source && f.source.contains(file)) {
+                    var cached = that.db[f];
+                    log.verboseLog(file, 'comparing mtime', stat.mtime, cached.indexTime);
+                    if (stat.mtime > cached.indexTime) {
+                        index(f, true);
+                    }
+                }
             }
         }
-        function index(fromWatcher) {
-            if (that.db[fileName] && that.db[fileName].source) {
-                that.db[fileName].source.all().forEach(function(file) {
+        function index(file, fromWatcher) {
+            if (that.db[file] && that.db[file].source) {
+                that.db[file].source.all().forEach(function(file) {
                     FileSystemWatcher.unwatch(file, onFileModified);
                     delete that.db[file.file];
                 });
             }
-            // log.log('index', fileName);
+            // log.log('index', file);
             var start = Date.now();
-            var source = Preprocessor.preprocess(fileName);
+            var source = Preprocessor.preprocess(file);
             if (!source || !source.code) {
-                console.error("Couldn't preprocess", fileName);
+                console.error("Couldn't preprocess", file);
                 if (!fromWatcher)
                     send({error: rjs.ERROR_READFAILURE});
-                FileSystemWatcher.watch(fileName, onFileModified);
+                FileSystemWatcher.watch(file, onFileModified);
                 return;
             }
             // console.log(source.files);
@@ -170,14 +174,14 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
             var indexer = new Indexer(source);
             var ret = indexer.index();
             if (!ret) {
-                console.error("Couldn't parse file", fileName);
+                console.error("Couldn't parse file", file);
                 return;
             }
             var end = Date.now();
             // console.log(ret.symbolNames);
             log.verboseLog(ret);
             // console.log(JSON.stringify(db, undefined, 4));
-            DataDir.add(fileName);
+            DataDir.add(file);
 
             var syms = 0;
             var symNames = 0;
@@ -186,12 +190,12 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 syms += ret[file].symbols.length;
                 symNames += ret[file].symbolNames.length;
             }
-            log.log('Indexed', fileName, 'in', (end - start), 'ms',
+            log.log('Indexed', file, 'in', (end - start), 'ms',
                     syms, 'symbols and', symNames, 'symbol names');
 
-            that.db[fileName].source = source;
-        };
-        index(false);
+            that.db[file].source = source;
+        }
+        index(fileName, false);
         break;
 
     case rjs.MESSAGE_FOLLOW_SYMBOL:
