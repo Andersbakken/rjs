@@ -255,7 +255,7 @@
               (insert "\n"))
             (if (cdr item)
                 (insert (car item) "\t" (cdr item))
-              (insert car item))) locations)
+              (insert (car item)))) locations)
     (rjs-init-bookmarks)
     (rjs-mode)
     (when rjs-jump-to-first-match
@@ -307,9 +307,8 @@
       (set-buffer buffer)
       (goto-char (point-max))
       (insert output)
-      
-/home/abakken/temp/rjstest/a.js,22	++a
-/home/abakken/temp/rjstest/a.js,27	++a(rjsd-parse-messages))))
+
+      (rjsd-parse-messages))))
 
 (defun* rjs-invoke (&rest arguments &key noerror (output (current-buffer)) &allow-other-keys)
   (setq arguments (cl-remove-if '(lambda (arg) (not arg)) arguments))
@@ -318,8 +317,7 @@
   (let ((buf (rjs-get-buffer rjs-process-buffer-name)))
     (unless (and rjs-process (eq (process-status rjs-process) 'run))
       (let ((exec (rjs-executable-find "rjsd")) proc
-            (args (list ;; "--silent"
-                        "-o" "elisp")))
+            (args (list "--silent" "-o" "elisp")))
         (if (not exec)
             (if (not noerror)
                 (error "Can't find rjsd"))
@@ -374,23 +372,73 @@
       (error "RJS: Buffer is not visiting a file"))
     (rjs-invoke "-r" loc)))
 
+
+(defun rjs-symbolname-completion-get (string)
+  (with-temp-buffer
+    (rjs-invoke "-S" string)
+    ;; (when rjs-rc-log-enabled
+    ;;   (rjs-log (buffer-string)))
+    (eval (read (buffer-string)))))
+
+(defun rjs-symbolname-completion-exactmatch (string)
+  (with-temp-buffer
+    (rjs-invoke "-N" "-F" string)
+    (> (point-max) (point-min))))
+
+(defun rjs-symbolname-complete (string predicate code)
+  ;; (message "CALLED %s %s %s"
+  ;;          string predicate
+  ;;          (cond ((eq code nil) "nil")
+  ;;                ((eq code t) "t")
+  ;;                ((eq code 'lambda) "lambda")))
+
+  (cond ((null code)
+         (let* ((alternatives (rjs-symbolname-completion-get string))
+                (attempt (try-completion string alternatives predicate)))
+           ;; (message "%s %d %d %s %s" string (length alternatives)
+           ;;          (if rjs-wildcard-symbol-names 1 0)
+           ;;          attempt
+           ;;          (and (string-match '\\*' string) "yes"))
+
+           ;; (if (and rjs-wildcard-symbol-names
+           ;;          (not attempt)
+           ;;          (> (length alternatives) 0)
+           ;;          (string-match "\\*" string))
+           ;;     (progn
+           ;;       (message "RETURNING STRING")
+           ;;       string)
+           ;;   attempt)))
+           attempt))
+        ((eq code t)
+         (rjs-symbolname-completion-get string))
+        ((eq code 'lambda)
+         (rjs-symbolname-completion-exactmatch string))
+        (t nil)))
+
+(defun rjs-remove-last-if-duplicated (seq) ;; destroys seq
+  (let ((newitem (car (last seq))))
+    (when (> (length (member newitem seq)) 1)
+      (nbutlast seq 1))
+    seq))
+
+
 (defvar rjs-symbol-name-history nil)
 (defun rjs-find-symbol ()
   (interactive)
   (let* ((token (if mark-active
-                  (buffer-substring-no-properties (region-beginning) (region-end))
-                (rjs-current-token)))
+                    (buffer-substring-no-properties (region-beginning) (region-end))
+                  (rjs-current-token)))
          (prompt (if token
                      (format "Symbol (default: %s): " token)
                    "Symbol: "))
          (input (if (fboundp 'completing-read-default)
                     (completing-read-default prompt (function rjs-symbolname-complete) nil nil nil 'rjs-symbol-name-history)
-                  (completing-read prompt (function rjs-symbolname-complete) nil nil nil 'rjs-symbol-name-history)))
-         (setq rtags-symbol-history (rtags-remove-last-if-duplicated rtags-symbol-history))
-         (when (equal input "")
-           (setq input token))
-         (unless (equal input "")
-           (rjs-invoke "-F" input)))))
+                  (completing-read prompt (function rjs-symbolname-complete) nil nil nil 'rjs-symbol-name-history))))
+    (setq rjs-symbol-name-history (rjs-remove-last-if-duplicated rjs-symbol-name-history))
+    (when (equal input "")
+      (setq input token))
+    (unless (equal input "")
+      (rjs-invoke "-F" input))))
 
 (defun rjs-cursor-info ()
   (interactive)
@@ -479,7 +527,6 @@
 ;;;###autoload
 (defun rjs-location-stack-jump (by)
   (interactive)
-  (setq rjs-last-context nil)
   (let ((instack (nth rjs-location-stack-index rjs-location-stack))
         (cur (rjs-current-location)))
     (if (not (string= instack cur))
