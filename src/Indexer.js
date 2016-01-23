@@ -36,7 +36,7 @@ Indexer.prototype = {
         try {
             parsed = esprima.parse(that.source.code, { tolerant: true, range: true });
         } catch (err) {
-            console.log("Got error", err, "for", that.source.code);
+            log.log("Got error", err);
             ret = {};
             ret[that.source.mainFile] = new Database(that.source.mainFile, that.source.indexTime, undefined, undefined, [err]);
             return ret;
