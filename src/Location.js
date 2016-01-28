@@ -20,9 +20,9 @@ Location.prototype = {
         ret += "Start: " + this.start;
         ret += " End: " + this.end;
         switch (this.type) {
-        case this.REFERENCE: ret += "Type: Reference";
-        case this.MAYBE_REFERENCE: ret += "Type: MaybeReference";
-        case this.DEFINITION: ret += "Type: Definition";
+        case Location.REFERENCE: ret += "Type: Reference";
+        case Location.MAYBE_REFERENCE: ret += "Type: MaybeReference";
+        case Location.DEFINITION: ret += "Type: Definition";
         }
         return ret;
     },
