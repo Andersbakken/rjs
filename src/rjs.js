@@ -235,7 +235,7 @@ module.exports = (function() {
         },
         elispEscape: function(str) {
             var ret;
-            for (var i=0; i<str.length; ++i) {
+            for (let i=0; i<str.length; ++i) {
                 var ch = str.charCodeAt(i);
                 switch (ch) {
                 case 34: // "

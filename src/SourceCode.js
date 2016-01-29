@@ -25,7 +25,7 @@ SourceCode.prototype = {
         }
         var removed = {};
         // console.log("resolving", arg.toString());
-        for (var i=0; i<this.files.length; ++i) {
+        for (let i=0; i<this.files.length; ++i) {
             // console.log(start, end, "looking at", this.files[i].length, this.files[i].file);
             if (start < this.files[i].length) {
                 var cashback = removed[this.files[i].file] || 0;
@@ -48,7 +48,7 @@ SourceCode.prototype = {
     },
     all: function() {
         var ret = [];
-        for (var i=0; i<this.files.length; ++i) {
+        for (let i=0; i<this.files.length; ++i) {
             if (ret.indexOf(this.files[i].file) == -1) {
                 ret.push(this.files[i].file);
             }
@@ -56,7 +56,7 @@ SourceCode.prototype = {
         return ret;
     },
     contains: function(file) {
-        for (var i=0; i<this.files.length; ++i) {
+        for (let i=0; i<this.files.length; ++i) {
             if (file === this.files[i].file)
                 return true;
         }

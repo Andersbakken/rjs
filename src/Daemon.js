@@ -30,7 +30,7 @@ function addLog(conn, verbose) {
 }
 
 function removeLog(conn) {
-    for (var i=0; i<log.outputs.length; ++i) {
+    for (let i=0; i<log.outputs.length; ++i) {
         if (log.outputs[i].connection == conn) {
             log.outputs.splice(i, 1);
             break;
@@ -76,6 +76,18 @@ function Daemon()
         that.processMessage({type: rjs.MESSAGE_INDEX, file: entry.file});
     });
 }
+
+Daemon.prototype._findReferences = function(symbol) {
+    var scopes = this.db[symbol.location.file].scopes;
+    console.log("CONSIDERING SCOPES", symbol, scopes.length);
+    for (let i=0; i<scopes.length; ++i) {
+        if (i == symbol.scopeIndex || scopes[i].parentScopes.indexOf(symbol.scopeIndex) != -1) {
+            console.log("COOL SCOPE", i, symbol.scopeIndex, scopes[i].parentScopes);
+        }
+    }
+    // gotta resolve target, targets need to
+    // console.log(symbol);
+};
 
 Daemon.prototype.processMessage = function(msg, sendFunc) {
     var that = this;
@@ -129,7 +141,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 FileSystemWatcher.unwatch(file, onFileModified);
             }
 
-            for (var f in that.db) {
+            for (let f in that.db) {
                 if (f.source && f.source.contains(file)) {
                     var cached = that.db[f];
                     log.verboseLog(file, 'comparing mtime', stat.mtime, cached.indexTime);
@@ -157,7 +169,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 return;
             }
             // console.log(source.files);
-            // for (var i=0; i<source.code.length; ++i) {
+            // for (let i=0; i<source.code.length; ++i) {
             //     console.log("resolve", i, source.resolve(i).file, source.resolve(i).start);
             // }
 
@@ -230,10 +242,10 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
                 if (sym)
                     result = sym;
             }
-            var references = result.symbol.references;
+            var references = this._findReferences(result.symbol);
             var refs = [];
             if (references) {
-                for (var idx=0; idx<result.symbol.references.length - 1; ++idx) { // if the current is the last in the array there's no reason to resort
+                for (let idx=0; idx<result.symbol.references.length - 1; ++idx) { // if the current is the last in the array there's no reason to resort
                     if (result.symbol.references[idx][0] === startLoc) {
                         references = result.symbol.references.slice(idx + 1).concat(result.symbol.references.slice(0, idx + 1));
                         break;
@@ -256,7 +268,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
         function addLocations(file) {
             var ret = that.db[file].findSymbolsByName(msg.symbolName);
             if (ret) {
-                for (var i=0; i<ret.locations.length; ++i) {
+                for (let i=0; i<ret.locations.length; ++i) {
                     locations.push({ file: file, offset: ret.locations[i][0] });
                 }
             }
@@ -282,7 +294,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
         function listSymbols(db) {
             var ret = db.listSymbols(msg.prefix);
             log.verboseLog('Got results', ret);
-            for (var i=0; i<ret.symbolNames.length; ++i) {
+            for (let i=0; i<ret.symbolNames.length; ++i) {
                 var name = ret.symbolNames[i];
                 if (!symbolNameObject[name]) {
                     symbolNameObject[name] = true;
@@ -315,7 +327,7 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
         } else {
             var objects = {};
             var empty = true;
-            for (var ff in that.db) {
+            for (let ff in that.db) {
                 empty = false;
                 objects[ff] = that.db[ff].indexTime;
             }

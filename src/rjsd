@@ -128,7 +128,7 @@ process.stdin.on('readable', function() {
     pendingStdIn += read;
     var lines = pendingStdIn.split('\n');
     if (lines.length > 1) {
-        for (var i=0; i<lines.length - 1; ++i) {
+        for (let i=0; i<lines.length - 1; ++i) {
             var commands;
             if (!lines[i])
                 continue;

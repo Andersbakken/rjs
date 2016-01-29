@@ -47,7 +47,7 @@ function unwatch(file, func)
 
 function clear()
 {
-    for (var file in listeners) {
+    for (let file in listeners) {
         unwatch(file);
     }
 }

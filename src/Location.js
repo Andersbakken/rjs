@@ -8,10 +8,18 @@ function Location(file, start, end, type)
     this.start = start;
     this.end = end;
     this.type = type || 0;
+    // ### FOR DEBUG
+    this.key = file + ',' + start;
 }
 Location.REFERENCE = 3;
 Location.MAYBE_REFERENCE = 2;
 Location.DEFINITION = 1;
+Location.compare = function(l, r) {
+    let ret = l.start - r.start;
+    if (!ret)
+        ret = l.end - r.end;
+    return ret;
+};
 
 Location.prototype = {
     toString: function() {

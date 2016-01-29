@@ -39,7 +39,7 @@ Database.prototype.findSymbolsByName = function(name) {
         var idx = bsearch(this.symbolNames, compare);
         if (idx !== undefined) {
             var locations = [];
-            for (var i=0; i<this.symbolNames[idx].locations.length; ++i) {
+            for (let i=0; i<this.symbolNames[idx].locations.length; ++i) {
                 var loc = this.symbolNames[idx].locations[i];
                 if (loc[2] == 0 || (loc[2] == 3 && !i))
                     locations.push(loc);

@@ -1,4 +1,8 @@
-/*global module */
+/*global module, require */
+
+'use strict';
+
+require('util').inspect = require('eyes').inspector({stream:null});
 
 var outputs = [];
 
@@ -12,7 +16,7 @@ function addSink(sink) {
 }
 
 function removeSink(sink) {
-    for (var i=0; i<outputs.length; ++i) {
+    for (let i=0; i<outputs.length; ++i) {
         if (outputs[i] == sink) {
             outputs.splice(i, 1);
             break;
@@ -24,7 +28,7 @@ function sendToOutput(verbosity, str)
 {
     if (!str)
         return;
-    for (var i=0; i<outputs.length; ++i) {
+    for (let i=0; i<outputs.length; ++i) {
         if (outputs[i].verbosity >= verbosity) {
             outputs[i].log(str);
         }
@@ -48,7 +52,7 @@ function formatLog(args) {
             out += ' ';
         out += str;
     }
-    for (var i=0; i<args.length; ++i) {
+    for (let i=0; i<args.length; ++i) {
         add(args[i]);
     }
     return out;

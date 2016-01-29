@@ -40,7 +40,7 @@ function add(file)
     if (!contents) {
         contents = { files: [] };
     } else {
-        for (var i=0; i<contents.files.length; ++i) {
+        for (let i=0; i<contents.files.length; ++i) {
             if (contents.files[i].file === file)
                 return false;
         }
@@ -55,7 +55,7 @@ function remove(file)
     if (!contents)
         return false;
     var found = false;
-    for (var i=0; i<contents.files.length; ++i) {
+    for (let i=0; i<contents.files.length; ++i) {
         if (contents.files[i].file === file) {
             found = true;
             contents.files.splice(i, 1);

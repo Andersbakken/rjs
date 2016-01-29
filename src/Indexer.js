@@ -8,21 +8,26 @@ var estraverse = require('estraverse');
 var bsearch = require('./bsearch');
 var Database = require('./Database');
 var Location = require('./Location');
+var Symbol = require('./Symbol');
+var Scope = require('./Scope');
 var log = require('./log');
 var assert = require('assert');
 var verbose = require('./Args').args.verbose;
 
+require('util').inspect = require('eyes').inspector({stream:null});
+
 function Indexer(src) {
     this.source = src;
-    this.parents = [];
-    this.scopes = [];
-    this.scopeStack = [];
+    this._parents = [];
+    this._scopeStack = [];
+    this._symbolNames = new Map();
+    this._db = undefined;
     assert(this.source);
 }
 
 Indexer.prototype._childKey = function(child) { // slow
     var p = child.parent;
-    for (var key in p) {
+    for (let key in p) {
         if (p[key] === child) {
             return key;
         }
@@ -32,7 +37,7 @@ Indexer.prototype._childKey = function(child) { // slow
 
 Indexer.prototype._isChild = function(key, node) {
     if (!node)
-        node = this.parents[this.parents.length - 1];
+        node = this._parents[this._parents.length - 1];
 
     if (node.parent) {
         var p = node.parent[key];
@@ -53,7 +58,7 @@ Indexer.prototype._codeForLocation = function(range) {
 
 Indexer.prototype._qualifiedName = function(node) {
     if (!node)
-        node = this.parents[this.parents.length - 1];
+        node = this._parents[this._parents.length - 1];
     var orig = node;
     var seen = [];
     function resolveName(n)
@@ -188,19 +193,18 @@ Indexer.prototype._indexIdentifier = function(node) {
     }
     if (name === undefined)
         name = this._qualifiedName();
-    console.log("  Found identifier", name, node.range, node.type, type);
-    name += '_';
-    var scope = this.scopeStack[this.scopeStack.length - 1];
-    if (!scope.objects[name])
-        scope.objects[name] = [];
-    scope.objects[name].push(new Location(this.source.mainFile, node.range[0], node.range[1], type));
+    // console.log("  Found identifier", name, node.range, node.type, type);
+    var scope = this._scopeStack[this._scopeStack.length - 1];
+    if (!scope._objects[name])
+        scope._objects[name] = [];
+    scope._objects[name].push(new Location(this.source.mainFile, node.range[0], node.range[1], type));
     ++scope.count;
 };
 
 Indexer.prototype._onEnter = function(node) {
-    if (this.parents.length)
-        node.parent = this.parents[this.parents.length - 1];
-    this.parents.push(node);
+    if (this._parents.length)
+        node.parent = this._parents[this._parents.length - 1];
+    this._parents.push(node);
     // console.log("entering", node.type, this._childKey(node));
     switch (node.type) {
     case esprima.Syntax.Program:
@@ -222,25 +226,82 @@ Indexer.prototype._onEnter = function(node) {
         break;
     }
     if (node.scope) {
-        var scope = { objects: {}, count: 0, type: node.type, index: this.scopes.length, defs: {}, range: node.range };
-        this.scopeStack.push(scope);
+        // ### should have a prototype
+        var scope = new Scope(node.type, node.range, this._db.scopes.length);
+        this._scopeStack.push(scope);
         // console.log("adding a scope", node.type, node.range);
-        this.scopes.push(scope);
+        this._db.scopes.push(scope);
     }
 };
 
 Indexer.prototype._onLeave = function(node) {
-    this.parents.pop();
+    this._parents.pop();
     if (node.scope) {
-        var scope = this.scopeStack.pop();
+        var scope = this._scopeStack.pop();
         // console.log("popping a scope", scope.type, scope.range);
-        scope.scopeStack = [];
-        for (var i=0; i<this.scopeStack.length; ++i) {
-            scope.scopeStack.push(this.scopeStack[i].index);
+        for (let i=0; i<this._scopeStack.length; ++i) {
+            scope.parentScopes.push(this._scopeStack[i].index);
         }
     }
 };
 
+Indexer.prototype._add = function(name, scope)
+{
+    var i;
+    var locations = scope._objects[name];
+    // console.log("    add", name, locations, scope.index, scope.parentScopes);
+    for (i=0; i<locations.length; ++i) {
+        // console.log("considering", name, JSON.stringify(locations[i]));
+        if (locations[i].type != Location.REFERENCE) {
+            if (!this._symbolNames[name]) {
+                this._symbolNames[name] = [ locations[i] ];
+            } else {
+                this._symbolNames[name].push(locations[i]);
+            }
+        }
+    }
+    // console.log(this._db.symbolNames);
+
+    var defObj;
+    var newDef = false;
+    if (locations[0].type !== Location.REFERENCE) {
+        defObj = new Symbol(locations[0], name, scope.index, true);
+        newDef = true;
+    }
+    if (locations[0].type === Location.DEFINITION) {
+        scope.defs[name] = defObj;
+    } else { // not a perfect hit, we need to search parent scopes
+        for (let idx=scope.parentScopes.length - 1; idx>=0; --idx) {
+            var parentScope = this._db.scopes[scope.parentScopes[idx]];
+            var def = parentScope.defs[name];
+            if (def && (!defObj || def.location.type === Location.DEFINITION)) {
+                newDef = false;
+                defObj = def;
+                break;
+            }
+        }
+    }
+    if (newDef) {
+        scope.defs[name] = defObj;
+        this._db.symbols.push(defObj);
+        i = 1;
+    } else {
+        i = 0;
+    }
+    while (i < locations.length) {
+        var loc = locations[i];
+        var obj = new Symbol(loc, name, scope.index);
+        if (defObj) {
+            // defObj.references.push(loc);
+            obj.target = defObj.location;
+            // console.log("setting target", defObj.location, "for", loc);
+            // console.log("BALLING", obj, defObj);
+        }
+        // console.log("REALLY ADDING AN OBJECT", obj);
+        this._db.symbols.push(obj);
+        ++i;
+    }
+};
 
 Indexer.prototype.index = function() {
     if (this.source.code.lastIndexOf("#!", 0) === 0) {
@@ -253,17 +314,15 @@ Indexer.prototype.index = function() {
         this.source.code = header + this.source.code.substring(ch);
         // console.log("replaced", ch);
     }
-    var ret;
     var esrefactorContext = new esrefactor.Context();
     var parsed;
     try {
         parsed = esprima.parse(this.source.code, { tolerant: true, range: true });
     } catch (err) {
         log.log("Got error", err);
-        ret = {};
-        ret[this.source.mainFile] = new Database(this.source);
-        ret.errors.push(err);
-        return ret;
+        this._db = new Database(this.source);
+        this._db.errors.push(err);
+        return this.db;
     }
 
     if (!parsed)
@@ -275,94 +334,56 @@ Indexer.prototype.index = function() {
 
     // console.log("BALLS", JSON.stringify(parsed, null, 4));
 
+    this._db = new Database(this.source);
     estraverse.traverse(esrefactorContext._syntax, { enter: this._onEnter.bind(this), leave: this._onLeave.bind(this) });
 
-    var symbolNames = {};
-    ret = new Database(this.source);
     var that = this;
-    function add(name, scope) {
-        var i;
-        var locations = scope.objects[name];
-        // console.log("    add", name, locations, scope.index, scope.scopeStack);
-        // ### not working
-        for (i=0; i<locations.length; ++i) {
-            // console.log("considering", name, JSON.stringify(locations[i]));
-            if (locations[i].type != Location.REFERENCE) {
-                if (!symbolNames[name]) {
-                    symbolNames[name] = locations;
-                } else {
-                    symbolNames[name] = symbolNames[name].concat(locations);
-                }
-            }
-        }
-
-        var defObj;
-        var newDef = false;
-        var realName = name.slice(0, -1);
-        if (locations[0][2] !== Location.REFERENCE) {
-            defObj = {
-                location: locations[0],
-                definition: true,
-                name: realName,
-                references: []
-            };
-            newDef = true;
-        }
-        if (locations[0][2] === Location.DEFINITION) {
-            scope.defs[name] = defObj;
-        } else { // not a perfect hit, we need to search parent scopes
-            for (var idx=scope.scopeStack.length - 1; idx>=0; --idx) {
-                var parentScope = that.scopes[scope.scopeStack[idx]];
-                var def = parentScope.defs[name];
-                if (def && (!defObj || def.location[2] === Location.DEFINITION)) {
-                    newDef = false;
-                    defObj = def;
-                    break;
-                }
-            }
-        }
-        if (newDef) {
-            scope.defs[name] = defObj;
-            ret.symbols.push(defObj);
-            i = 1;
-        } else {
-            i = 0;
-        }
-        while (i < locations.length) {
-            var loc = locations[i];
-            var obj = { location: loc, name: realName };
-            if (defObj) {
-                defObj.references.push(loc);
-                obj.target = defObj.location;
-            }
-            // console.log("REALLY ADDING AN OBJECT", obj);
-            ret.symbols.push(obj);
-            ++i;
-        }
-    }
-    for (var s=0; s<this.scopes.length; ++s) {
-        var scope = this.scopes[s];
+    var s;
+    for (s=0; s<this._db.scopes.length; ++s) {
+        var scope = this._db.scopes[s];
         // console.log(JSON.stringify(scope));
         // continue;
-        // console.log("Adding things for scope", s, scope.count, scopes.length, scope.type, scope.range);
+        // console.log("Adding things for scope", s, scope.count, _db.scopes.length, scope.type, scope.range);
         if (scope.count) {
-            for (var name in scope.objects) {
-                scope.objects[name].sort(function(l, r) {
+            for (let name in scope._objects) {
+                scope._objects[name].sort(function(l, r) {
                     var ret = l.type - r.type;
                     if (!ret)
                         ret = l.start - r.start;
                     return ret;
                 });
-                add(name, scope);
+                this._add(name, scope);
             }
         }
     }
-    ret.symbols.sort(function(l, r) {
-        var ret = l.location.start - r.location.start;
-        if (!ret)
-            ret = l.location.end - r.location.end;
-        return ret;
-    });
+
+    //     for (var f in dbs) {
+    //         dbs[f].sort(function(l, r) {
+    //             var ret = l.start - r.start;
+    //             if (!ret)
+    //                 ret = l.end - r.end;
+    //             return ret;
+    //         });
+    //         split[f].symbolNames.push({ name: n, locations: dbs[f] });
+    //     }
+    // }
+    // for (var db in split) {
+    //     split[db].symbolNames.sort(function(l, r) { return l.name.localeCompare(r.name); });
+
+
+    for (let name in this._symbolNames) {
+        let locations = this._symbolNames[name];
+        locations.sort(Location.compare);
+        this._db.symbolNames.push({ name: name, locations: locations });
+    }
+    this._db.symbolNames.sort(function(l, r) { return l.name.localeCompare(r.name); });
+
+    // console.log("SHIT", this._db.symbolNames);
+    for (s=0; s<this._db.scopes.length; ++s) {
+        delete this._db.scopes[s]._objects;
+    }
+
+    this._db.symbols.sort(Location.compare);
 
     if (verbose >= 2) {
         // stop being circular
@@ -372,20 +393,20 @@ Indexer.prototype.index = function() {
                 delete node.indexed;
             }
         });
-        ret.ast = esrefactorContext._syntax;
+        this._db.ast = esrefactorContext._syntax;
     }
     if (esrefactorContext._syntax.errors)
-        ret.errors = esrefactorContext._syntax.errors;
+        this._db.errors = esrefactorContext._syntax.errors;
     // console.log(file, "indexed");
 
-    console.log(ret.symbols);
+    // console.log(ret.symbols);
     // var split = {};
-    // for (var i=0; i<ret.symbols.length; ++i) {
+    // for (let i=0; i<ret.symbols.length; ++i) {
     //     var sym = ret.symbols[i];
     //     sym.location = this.source.resolve(sym.location);
     //     // console.log(loc);
     //     if (sym.references) {
-    //         for (var r=0; r<sym.references.length; ++r) {
+    //         for (let r=0; r<sym.references.length; ++r) {
     //             sym.references[r] = this.source.resolve(sym.references[r]);
     //         }
     //     }
@@ -410,7 +431,7 @@ Indexer.prototype.index = function() {
     // // need to resolve symbolNames
 
     // // console.log(symbolNames);
-    // for (var symbolName in symbolNames) {
+    // for (let symbolName in symbolNames) {
     //     var dbs = {};
     //     var n = symbolName.substr(0, symbolName.length - 1);
     //     symbolNames[symbolName].forEach(function(loc) {
@@ -421,7 +442,7 @@ Indexer.prototype.index = function() {
     //             dbs[resolved.file].push(resolved);
     //         }
     //     }, this);
-    //     for (var f in dbs) {
+    //     for (let f in dbs) {
     //         dbs[f].sort(function(l, r) {
     //             var ret = l.start - r.start;
     //             if (!ret)
@@ -431,14 +452,17 @@ Indexer.prototype.index = function() {
     //         split[f].symbolNames.push({ name: n, locations: dbs[f] });
     //     }
     // }
-    // for (var db in split) {
+    // for (let db in split) {
     //     split[db].symbolNames.sort(function(l, r) { return l.name.localeCompare(r.name); });
     //     log.verboseLog(db, JSON.stringify(split[db], null, 4));
     // }
 
     // console.log(split);
-    console.log(JSON.stringify(this.scopes, null, 4));
-    return ret;
+    // console.log(JSON.stringify(this._db.scopes, null, 4));
+    // console.log(JSON.stringify(this._db.symbolNames, null, 4));
+    console.log(this._db.symbols);
+    // console.log(this._db.scopes);
+    return this._db;
     // return split;
 };
 
