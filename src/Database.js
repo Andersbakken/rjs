@@ -3,14 +3,13 @@
 'use strict';
 
 var bsearch = require("./bsearch");
-function Database(file, indexTime, symbols, symbolNames, errors)
+function Database(source)
 {
-    this.file = file;
-    this.indexTime = indexTime;
-    this.symbols = symbols || [];
-    this.symbolNames = symbolNames || [];
-    this.errors = errors || [];
-    this.source = undefined;
+    this.source = source;
+    this.symbols = [];
+    this.symbolNames = [];
+    this.scopes = [];
+    this.errors = [];
 }
 
 Database.prototype.findSymbol = function(offset) {

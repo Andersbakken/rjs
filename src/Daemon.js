@@ -185,11 +185,9 @@ Daemon.prototype.processMessage = function(msg, sendFunc) {
 
             var syms = 0;
             var symNames = 0;
-            for (var file in ret) {
-                that.db[file] = ret[file];
-                syms += ret[file].symbols.length;
-                symNames += ret[file].symbolNames.length;
-            }
+            that.db[source.mainFile] = ret;
+            syms += ret.symbols.length;
+            symNames += ret.symbolNames.length;
             log.log('Indexed', file, 'in', (end - start), 'ms',
                     syms, 'symbols and', symNames, 'symbol names');
 
